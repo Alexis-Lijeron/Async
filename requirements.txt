@@ -1,0 +1,37 @@
+# FastAPI y servidor
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Base de datos y ORM 
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9  
+alembic==1.12.1
+
+# Validación y configuración
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Autenticación y seguridad
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Utilidades básicas
+python-dotenv==1.0.0
+typing-extensions==4.8.0
+
+# Sistema de colas y concurrencia 
+threading
+queue
+
+# Cache opcional
+redis==5.0.1
+
+# Testing 
+pytest==7.4.3
+httpx==0.25.2
+
+# Desarrollo 
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
