@@ -4,11 +4,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import contextmanager
 
-from app.config.database import init_db
 from app.core.thread_queue_sync import sync_thread_queue_manager
 from app.core.pagination_system_sync import sync_smart_paginator
 from app.core.seeder_sync import run_seeder
-
+from app.config.database import init_db
 # Import routers
 from app.api.auth import router as auth_router
 from app.api.v1.estudiantes import router as estudiantes_router
@@ -54,7 +53,7 @@ def initialize_app():
         # 3. Iniciar sistema de colas síncrono
         print("🧵 Iniciando sistema de colas síncrono...")
         try:
-            sync_thread_queue_manager.start(max_workers=2)
+            sync_thread_queue_manager.start(max_workers=1)
             print("✅ Sistema de colas síncrono iniciado")
         except Exception as queue_error:
             print(f"⚠️ Error iniciando colas síncronas: {queue_error}")

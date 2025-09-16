@@ -32,7 +32,9 @@ def get_aulas(
         if search:
             search_pattern = f"%{search}%"
             query = query.filter(
-                (Aula.modulo.ilike(search_pattern)) | (Aula.aula.ilike(search_pattern))
+                (Aula.modulo.ilike(search_pattern))
+                | (Aula.aula.ilike(search_pattern))
+                | (Aula.codigo_aula.ilike(search_pattern))
             )
 
         aulas = query.offset(offset).limit(limit).all()
@@ -43,6 +45,7 @@ def get_aulas(
             result.append(
                 {
                     "id": a.id,
+                    "codigo_aula": a.codigo_aula,
                     "modulo": a.modulo,
                     "aula": a.aula,
                     "ubicacion": f"Módulo {a.modulo} - Aula {a.aula}",
@@ -73,20 +76,21 @@ def get_aulas(
     }
 
 
-@router.get("/{aula_id}")
+@router.get("/{codigo_aula}")
 def get_aula(
-    aula_id: int,
+    codigo_aula: str,
     include_horarios: bool = Query(False, description="Incluir horarios del aula"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Ver aula específica con detalles"""
-    aula = db.query(Aula).filter(Aula.id == aula_id).first()
+    aula = db.query(Aula).filter(Aula.codigo_aula == codigo_aula).first()
     if not aula:
         raise HTTPException(status_code=404, detail="Aula no encontrada")
 
     aula_data = {
         "id": aula.id,
+        "codigo_aula": aula.codigo_aula,
         "modulo": aula.modulo,
         "aula": aula.aula,
         "ubicacion": f"Módulo {aula.modulo} - Aula {aula.aula}",
@@ -98,6 +102,7 @@ def get_aula(
         aula_data["horarios"] = [
             {
                 "id": h.id,
+                "codigo_horario": h.codigo_horario,
                 "dia": h.dia,
                 "hora_inicio": str(h.hora_inicio),
                 "hora_final": str(h.hora_final),
@@ -117,7 +122,7 @@ def create_aula(
 ):
     """Crear aula"""
     try:
-        required_fields = ["modulo", "aula"]
+        required_fields = ["codigo_aula", "modulo", "aula"]
         missing_fields = [field for field in required_fields if field not in aula_data]
 
         if missing_fields:
@@ -126,16 +131,14 @@ def create_aula(
                 detail=f"Campos requeridos faltantes: {', '.join(missing_fields)}",
             )
 
-        # Verificar que no exista una combinación módulo-aula igual
+        # Verificar que no exista el código de aula
         existing = (
-            db.query(Aula)
-            .filter(Aula.modulo == aula_data["modulo"], Aula.aula == aula_data["aula"])
-            .first()
+            db.query(Aula).filter(Aula.codigo_aula == aula_data["codigo_aula"]).first()
         )
         if existing:
             raise HTTPException(
                 status_code=400,
-                detail=f"Ya existe el aula {aula_data['aula']} en el módulo {aula_data['modulo']}",
+                detail=f"Ya existe un aula con el código '{aula_data['codigo_aula']}'",
             )
 
         task_id = sync_thread_queue_manager.add_task(
@@ -158,30 +161,42 @@ def create_aula(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{aula_id}")
+@router.put("/{codigo_aula}")
 def update_aula(
-    aula_id: int,
+    codigo_aula: str,
     aula_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
+    db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Actualizar aula"""
-    aula_data["id"] = aula_id
+    # Verificar que existe
+    existing_aula = db.query(Aula).filter(Aula.codigo_aula == codigo_aula).first()
+    if not existing_aula:
+        raise HTTPException(status_code=404, detail="Aula no encontrada")
+
+    aula_data["codigo_aula"] = codigo_aula
     task_id = sync_thread_queue_manager.add_task(
         "update_aula", aula_data, priority=priority
     )
     return {"task_id": task_id, "message": "Actualización en cola", "status": "pending"}
 
 
-@router.delete("/{aula_id}")
+@router.delete("/{codigo_aula}")
 def delete_aula(
-    aula_id: int,
+    codigo_aula: str,
     force: bool = Query(False, description="Forzar eliminación"),
     priority: int = Query(3, ge=1, le=10, description="Prioridad de la tarea"),
+    db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Eliminar aula"""
+    # Verificar que existe
+    aula = db.query(Aula).filter(Aula.codigo_aula == codigo_aula).first()
+    if not aula:
+        raise HTTPException(status_code=404, detail="Aula no encontrada")
+
     task_id = sync_thread_queue_manager.add_task(
-        "delete_aula", {"id": aula_id, "force": force}, priority=priority
+        "delete_aula", {"codigo_aula": codigo_aula, "force": force}, priority=priority
     )
     return {"task_id": task_id, "message": "Eliminación en cola", "status": "pending"}

@@ -5,7 +5,8 @@ from .base import BaseModel
 
 class Inscripcion(BaseModel):
     __tablename__ = "inscripciones"
-
+    
+    codigo_inscripcion = Column(String(30), unique=True, nullable=False, index=True)
     semestre = Column(Integer, nullable=False)
     gestion_id = Column(Integer, ForeignKey("gestiones.id"), nullable=False)
     estudiante_id = Column(Integer, ForeignKey("estudiantes.id"), nullable=False)

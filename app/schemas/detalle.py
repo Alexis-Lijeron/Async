@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 
 class DetalleBase(BaseModel):
+    codigo_detalle: str  # NUEVO
     fecha: date
     hora: time
     grupo_id: int
@@ -17,6 +18,7 @@ class DetalleCreate(DetalleBase):
 
 
 class DetalleUpdate(BaseModel):
+    codigo_detalle: Optional[str] = None  # NUEVO
     fecha: Optional[date] = None
     hora: Optional[time] = None
     grupo_id: Optional[int] = None

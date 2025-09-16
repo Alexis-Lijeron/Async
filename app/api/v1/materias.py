@@ -20,10 +20,10 @@ def get_materias(
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
     search: Optional[str] = Query(None, description="Buscar por sigla o nombre"),
-    nivel_id: Optional[int] = Query(None, description="Filtrar por nivel/semestre"),
+    nivel: Optional[int] = Query(None, description="Filtrar por nivel/semestre"),
     es_electiva: Optional[bool] = Query(None, description="Filtrar por electivas"),
-    plan_estudio_id: Optional[int] = Query(
-        None, description="Filtrar por plan de estudios"
+    plan_codigo: Optional[str] = Query(
+        None, description="Filtrar por código de plan de estudios"
     ),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
@@ -42,14 +42,20 @@ def get_materias(
                 | (Materia.nombre.ilike(search_pattern))
             )
 
-        if nivel_id:
-            query = query.filter(Materia.nivel_id == nivel_id)
+        if nivel:
+            nivel_obj = db.query(Nivel).filter(Nivel.nivel == nivel).first()
+            if nivel_obj:
+                query = query.filter(Materia.nivel_id == nivel_obj.id)
 
         if es_electiva is not None:
             query = query.filter(Materia.es_electiva == es_electiva)
 
-        if plan_estudio_id:
-            query = query.filter(Materia.plan_estudio_id == plan_estudio_id)
+        if plan_codigo:
+            plan = (
+                db.query(PlanEstudio).filter(PlanEstudio.codigo == plan_codigo).first()
+            )
+            if plan:
+                query = query.filter(Materia.plan_estudio_id == plan.id)
 
         materias = query.offset(offset).limit(limit).all()
 
@@ -57,7 +63,7 @@ def get_materias(
         materias_data = []
         for m in materias:
             # Obtener nivel
-            nivel = db.query(Nivel).filter(Nivel.id == m.nivel_id).first()
+            nivel_obj = db.query(Nivel).filter(Nivel.id == m.nivel_id).first()
 
             # Obtener plan de estudios
             plan = (
@@ -83,11 +89,11 @@ def get_materias(
                     "es_electiva": m.es_electiva,
                     "nivel": (
                         {
-                            "id": nivel.id,
-                            "nivel": nivel.nivel,
-                            "semestre": f"Semestre {nivel.nivel}",
+                            "id": nivel_obj.id,
+                            "nivel": nivel_obj.nivel,
+                            "semestre": f"Semestre {nivel_obj.nivel}",
                         }
-                        if nivel
+                        if nivel_obj
                         else None
                     ),
                     "plan_estudio": (
@@ -117,9 +123,9 @@ def get_materias(
         query_function=query_materias,
         query_params={
             "search": search,
-            "nivel_id": nivel_id,
+            "nivel": nivel,
             "es_electiva": es_electiva,
-            "plan_estudio_id": plan_estudio_id,
+            "plan_codigo": plan_codigo,
         },
         page_size=page_size,
     )
@@ -129,9 +135,9 @@ def get_materias(
         "pagination": metadata,
         "filters": {
             "search": search,
-            "nivel_id": nivel_id,
+            "nivel": nivel,
             "es_electiva": es_electiva,
-            "plan_estudio_id": plan_estudio_id,
+            "plan_codigo": plan_codigo,
         },
         "instructions": {
             "next_page": f"Usa el mismo session_id '{metadata['session_id']}' para obtener más resultados",
@@ -237,16 +243,16 @@ def get_materias_by_semestre(
     }
 
 
-@router.get("/{materia_id}")
+@router.get("/{sigla}")
 def get_materia(
-    materia_id: int,
+    sigla: str,
     include_grupos: bool = Query(False, description="Incluir grupos de la materia"),
     include_prerrequisitos: bool = Query(True, description="Incluir prerrequisitos"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
-    """Ver materia específica con detalles completos"""
-    materia = db.query(Materia).filter(Materia.id == materia_id).first()
+    """Ver materia específica con detalles completos por sigla"""
+    materia = db.query(Materia).filter(Materia.sigla == sigla).first()
     if not materia:
         raise HTTPException(status_code=404, detail="Materia no encontrada")
 
@@ -293,6 +299,7 @@ def get_materia(
         materia_data["prerrequisitos"] = [
             {
                 "id": p.id,
+                "codigo_prerrequisito": p.codigo_prerrequisito,
                 "sigla_prerrequisito": p.sigla_prerrequisito,
             }
             for p in prerrequisitos
@@ -304,6 +311,7 @@ def get_materia(
         materia_data["grupos"] = [
             {
                 "id": g.id,
+                "codigo_grupo": g.codigo_grupo,
                 "descripcion": g.descripcion,
                 "docente_id": g.docente_id,
                 "gestion_id": g.gestion_id,
@@ -331,7 +339,7 @@ def create_materia(
     """Crear materia (procesamiento síncrono)"""
     try:
         # Validar campos requeridos
-        required_fields = ["sigla", "nombre", "creditos", "nivel_id", "plan_estudio_id"]
+        required_fields = ["sigla", "nombre", "creditos", "nivel", "plan_codigo"]
         missing_fields = [
             field for field in required_fields if field not in materia_data
         ]
@@ -352,21 +360,28 @@ def create_materia(
                 detail=f"Ya existe una materia con la sigla '{materia_data['sigla']}'",
             )
 
-        # Verificar que el nivel existe
-        nivel = db.query(Nivel).filter(Nivel.id == materia_data["nivel_id"]).first()
+        # Verificar que el nivel existe y convertir a ID
+        nivel = db.query(Nivel).filter(Nivel.nivel == materia_data["nivel"]).first()
         if not nivel:
-            raise HTTPException(status_code=400, detail="Nivel especificado no existe")
+            raise HTTPException(
+                status_code=400, detail=f"No existe nivel {materia_data['nivel']}"
+            )
 
-        # Verificar que el plan de estudios existe
+        # Verificar que el plan de estudios existe y convertir código a ID
         plan = (
             db.query(PlanEstudio)
-            .filter(PlanEstudio.id == materia_data["plan_estudio_id"])
+            .filter(PlanEstudio.codigo == materia_data["plan_codigo"])
             .first()
         )
         if not plan:
             raise HTTPException(
-                status_code=400, detail="Plan de estudios especificado no existe"
+                status_code=400,
+                detail=f"No existe plan de estudios con código '{materia_data['plan_codigo']}'",
             )
+
+        # Convertir a IDs para el procesamiento
+        materia_data["nivel_id"] = nivel.id
+        materia_data["plan_estudio_id"] = plan.id
 
         # Configurar rollback
         rollback_data = {
@@ -398,9 +413,9 @@ def create_materia(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{materia_id}")
+@router.put("/{sigla}")
 def update_materia(
-    materia_id: int,
+    sigla: str,
     materia_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
@@ -409,7 +424,7 @@ def update_materia(
     """Actualizar materia (procesamiento síncrono con rollback)"""
     try:
         # Verificar que existe
-        existing_materia = db.query(Materia).filter(Materia.id == materia_id).first()
+        existing_materia = db.query(Materia).filter(Materia.sigla == sigla).first()
         if not existing_materia:
             raise HTTPException(status_code=404, detail="Materia no encontrada")
 
@@ -418,7 +433,8 @@ def update_materia(
             sigla_exists = (
                 db.query(Materia)
                 .filter(
-                    Materia.sigla == materia_data["sigla"], Materia.id != materia_id
+                    Materia.sigla == materia_data["sigla"],
+                    Materia.id != existing_materia.id,
                 )
                 .first()
             )
@@ -428,33 +444,36 @@ def update_materia(
                     detail=f"Ya existe una materia con la sigla '{materia_data['sigla']}'",
                 )
 
-        # Verificar referencias si se están cambiando
-        if "nivel_id" in materia_data:
-            nivel = db.query(Nivel).filter(Nivel.id == materia_data["nivel_id"]).first()
+        # Verificar referencias si se están cambiando y convertir a IDs
+        if "nivel" in materia_data:
+            nivel = db.query(Nivel).filter(Nivel.nivel == materia_data["nivel"]).first()
             if not nivel:
                 raise HTTPException(
-                    status_code=400, detail="Nivel especificado no existe"
+                    status_code=400, detail=f"No existe nivel {materia_data['nivel']}"
                 )
+            materia_data["nivel_id"] = nivel.id
 
-        if "plan_estudio_id" in materia_data:
+        if "plan_codigo" in materia_data:
             plan = (
                 db.query(PlanEstudio)
-                .filter(PlanEstudio.id == materia_data["plan_estudio_id"])
+                .filter(PlanEstudio.codigo == materia_data["plan_codigo"])
                 .first()
             )
             if not plan:
                 raise HTTPException(
-                    status_code=400, detail="Plan de estudios especificado no existe"
+                    status_code=400,
+                    detail=f"No existe plan de estudios con código '{materia_data['plan_codigo']}'",
                 )
+            materia_data["plan_estudio_id"] = plan.id
 
-        # Agregar ID a los datos
-        materia_data["id"] = materia_id
+        # Agregar sigla original a los datos
+        materia_data["sigla_original"] = sigla
 
         # Configurar rollback con estado original
         rollback_data = {
             "operation": "update",
             "table": "materias",
-            "record_id": materia_id,
+            "sigla_original": sigla,
             "original_data": {
                 "sigla": existing_materia.sigla,
                 "nombre": existing_materia.nombre,
@@ -479,7 +498,7 @@ def update_materia(
             "message": "Actualización en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "materia_id": materia_id,
+            "sigla": sigla,
             "check_status": f"/queue/tasks/{task_id}",
             "rollback_available": True,
         }
@@ -490,9 +509,9 @@ def update_materia(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{materia_id}")
+@router.delete("/{sigla}")
 def delete_materia(
-    materia_id: int,
+    sigla: str,
     force: bool = Query(False, description="Forzar eliminación aunque tenga grupos"),
     priority: int = Query(3, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
@@ -501,12 +520,12 @@ def delete_materia(
     """Eliminar materia (procesamiento síncrono)"""
     try:
         # Verificar que existe
-        materia = db.query(Materia).filter(Materia.id == materia_id).first()
+        materia = db.query(Materia).filter(Materia.sigla == sigla).first()
         if not materia:
             raise HTTPException(status_code=404, detail="Materia no encontrada")
 
         # Verificar si tiene grupos
-        grupos_count = db.query(Grupo).filter(Grupo.materia_id == materia_id).count()
+        grupos_count = db.query(Grupo).filter(Grupo.materia_id == materia.id).count()
         if grupos_count > 0 and not force:
             raise HTTPException(
                 status_code=400,
@@ -516,13 +535,13 @@ def delete_materia(
         # Verificar prerrequisitos
         prerrequisitos_count = (
             db.query(Prerrequisito)
-            .filter(Prerrequisito.materia_id == materia_id)
+            .filter(Prerrequisito.materia_id == materia.id)
             .count()
         )
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="delete_materia",
-            data={"id": materia_id, "force": force},
+            data={"sigla": sigla, "force": force},
             priority=priority,
             max_retries=2,
         )
@@ -532,7 +551,7 @@ def delete_materia(
             "message": "Eliminación en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "materia_id": materia_id,
+            "sigla": sigla,
             "groups_affected": grupos_count if force else 0,
             "prerrequisitos_affected": prerrequisitos_count,
             "check_status": f"/queue/tasks/{task_id}",
@@ -550,42 +569,9 @@ def delete_materia(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/search/sigla/{sigla}")
-def search_materia_by_sigla(
-    sigla: str,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user),
-):
-    """Buscar materia por sigla exacta"""
-    materia = db.query(Materia).filter(Materia.sigla.ilike(sigla)).first()
-    if not materia:
-        raise HTTPException(
-            status_code=404, detail=f"No se encontró materia con sigla '{sigla}'"
-        )
-
-    # Obtener información adicional
-    nivel = db.query(Nivel).filter(Nivel.id == materia.nivel_id).first()
-    grupos_count = db.query(Grupo).filter(Grupo.materia_id == materia.id).count()
-    prerrequisitos = (
-        db.query(Prerrequisito).filter(Prerrequisito.materia_id == materia.id).all()
-    )
-
-    return {
-        "id": materia.id,
-        "sigla": materia.sigla,
-        "nombre": materia.nombre,
-        "creditos": materia.creditos,
-        "es_electiva": materia.es_electiva,
-        "semestre": nivel.nivel if nivel else None,
-        "grupos_count": grupos_count,
-        "prerrequisitos": [p.sigla_prerrequisito for p in prerrequisitos],
-        "created_at": materia.created_at.isoformat() if materia.created_at else None,
-    }
-
-
-@router.get("/{materia_id}/grupos")
+@router.get("/{sigla}/grupos")
 def get_materia_grupos(
-    materia_id: int,
+    sigla: str,
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
     db: Session = Depends(get_db),
@@ -593,14 +579,14 @@ def get_materia_grupos(
 ):
     """Obtener grupos de una materia específica con paginación"""
     # Verificar que la materia existe
-    materia = db.query(Materia).filter(Materia.id == materia_id).first()
+    materia = db.query(Materia).filter(Materia.sigla == sigla).first()
     if not materia:
         raise HTTPException(status_code=404, detail="Materia no encontrada")
 
     def query_grupos_materia(db: Session, offset: int, limit: int, **kwargs):
         grupos = (
             db.query(Grupo)
-            .filter(Grupo.materia_id == materia_id)
+            .filter(Grupo.materia_id == materia.id)
             .offset(offset)
             .limit(limit)
             .all()
@@ -608,6 +594,7 @@ def get_materia_grupos(
         return [
             {
                 "id": g.id,
+                "codigo_grupo": g.codigo_grupo,
                 "descripcion": g.descripcion,
                 "docente_id": g.docente_id,
                 "gestion_id": g.gestion_id,
@@ -623,7 +610,7 @@ def get_materia_grupos(
 
     results, metadata = sync_smart_paginator.get_next_page(
         session_id=session_id,
-        endpoint=f"materia_{materia_id}_grupos",
+        endpoint=f"materia_{sigla}_grupos",
         query_function=query_grupos_materia,
         query_params={},
         page_size=page_size,
@@ -637,4 +624,38 @@ def get_materia_grupos(
         },
         "grupos": results,
         "pagination": metadata,
+    }
+
+
+@router.get("/{sigla}/prerrequisitos")
+def get_materia_prerrequisitos(
+    sigla: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """Obtener prerrequisitos de una materia específica"""
+    # Verificar que la materia existe
+    materia = db.query(Materia).filter(Materia.sigla == sigla).first()
+    if not materia:
+        raise HTTPException(status_code=404, detail="Materia no encontrada")
+
+    prerrequisitos = (
+        db.query(Prerrequisito).filter(Prerrequisito.materia_id == materia.id).all()
+    )
+
+    return {
+        "materia": {
+            "id": materia.id,
+            "sigla": materia.sigla,
+            "nombre": materia.nombre,
+        },
+        "prerrequisitos": [
+            {
+                "id": p.id,
+                "codigo_prerrequisito": p.codigo_prerrequisito,
+                "sigla_prerrequisito": p.sigla_prerrequisito,
+            }
+            for p in prerrequisitos
+        ],
+        "total_prerrequisitos": len(prerrequisitos),
     }

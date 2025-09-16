@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 
 class PrerrequisiteBase(BaseModel):
+    codigo_prerrequisito: str  # NUEVO
     materia_id: int
     sigla_prerrequisito: str
 
@@ -16,6 +17,7 @@ class PrerrequisiteCreate(PrerrequisiteBase):
 
 
 class PrerrequisiteUpdate(BaseModel):
+    codigo_prerrequisito: Optional[str] = None  # NUEVO
     materia_id: Optional[int] = None
     sigla_prerrequisito: Optional[str] = None
 

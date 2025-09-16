@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 
 class GestionBase(BaseModel):
+    codigo_gestion: str  # NUEVO
     semestre: int
     año: int
 
@@ -17,6 +18,7 @@ class GestionCreate(GestionBase):
 
 
 class GestionUpdate(BaseModel):
+    codigo_gestion: Optional[str] = None  # NUEVO
     semestre: Optional[int] = None
     año: Optional[int] = None
 

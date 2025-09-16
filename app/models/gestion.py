@@ -6,6 +6,7 @@ from .base import BaseModel
 class Gestion(BaseModel):
     __tablename__ = "gestiones"
 
+    codigo_gestion = Column(String(20), unique=True, nullable=False, index=True)
     semestre = Column(Integer, nullable=False)
     año = Column(Integer, nullable=False)
 

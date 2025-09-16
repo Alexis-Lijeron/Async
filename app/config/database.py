@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 import time
-from .settings import settings
+from app.config.settings import settings
 
 # Configurar el motor de la base de datos
 engine = create_engine(
@@ -12,7 +12,6 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
     pool_timeout=30,
-    connect_args={"options": "-c default_transaction_isolation=read_committed"},
 )
 
 # Crear una sesión local

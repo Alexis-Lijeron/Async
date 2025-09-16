@@ -16,8 +16,8 @@ router = APIRouter()
 def get_estudiantes(
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
-    carrera_id: Optional[int] = Query(None, description="Filtrar por carrera"),
-    search: Optional[str] = Query(None, description="Buscar por nombre o registro"),
+    carrera_codigo: Optional[str] = Query(None, description="Filtrar por carrera"),
+    search: Optional[str] = Query(None, description="Buscar por nombre, registro o CI"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
@@ -28,8 +28,10 @@ def get_estudiantes(
         query = db.query(Estudiante)
 
         # Aplicar filtros
-        if carrera_id:
-            query = query.filter(Estudiante.carrera_id == carrera_id)
+        if carrera_codigo:
+            carrera = db.query(Carrera).filter(Carrera.codigo == carrera_codigo).first()
+            if carrera:
+                query = query.filter(Estudiante.carrera_id == carrera.id)
 
         if search:
             search_pattern = f"%{search}%"
@@ -37,6 +39,7 @@ def get_estudiantes(
                 (Estudiante.nombre.ilike(search_pattern))
                 | (Estudiante.apellido.ilike(search_pattern))
                 | (Estudiante.registro.ilike(search_pattern))
+                | (Estudiante.ci.ilike(search_pattern))
             )
 
         estudiantes = query.offset(offset).limit(limit).all()
@@ -79,14 +82,14 @@ def get_estudiantes(
         session_id=session_id,
         endpoint="estudiantes_list",
         query_function=query_estudiantes,
-        query_params={"carrera_id": carrera_id, "search": search},
+        query_params={"carrera_codigo": carrera_codigo, "search": search},
         page_size=page_size,
     )
 
     return {
         "data": results,
         "pagination": metadata,
-        "filters": {"carrera_id": carrera_id, "search": search},
+        "filters": {"carrera_codigo": carrera_codigo, "search": search},
         "instructions": {
             "next_page": f"Usa el mismo session_id '{metadata['session_id']}' para obtener más resultados",
             "reset": f"Para reiniciar usa DELETE /queue/pagination/sessions/{metadata['session_id']}",
@@ -121,14 +124,14 @@ def get_estudiante_actual(current_user=Depends(get_current_active_user)):
         }
 
 
-@router.get("/{estudiante_id}")
+@router.get("/{registro}")
 def get_estudiante(
-    estudiante_id: int,
+    registro: str,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
-    """Obtener estudiante específico (VERSIÓN SÍNCRONA)"""
-    estudiante = db.query(Estudiante).filter(Estudiante.id == estudiante_id).first()
+    """Obtener estudiante específico por registro (VERSIÓN SÍNCRONA)"""
+    estudiante = db.query(Estudiante).filter(Estudiante.registro == registro).first()
 
     if not estudiante:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
@@ -160,6 +163,7 @@ def get_estudiante(
 def create_estudiante(
     estudiante_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
+    db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Crear estudiante (procesamiento síncrono)"""
@@ -171,7 +175,7 @@ def create_estudiante(
             "apellido",
             "ci",
             "contraseña",
-            "carrera_id",
+            "carrera_codigo",  # Cambio: usar carrera_codigo en lugar de carrera_id
         ]
         missing_fields = [
             field for field in required_fields if field not in estudiante_data
@@ -182,6 +186,43 @@ def create_estudiante(
                 status_code=400,
                 detail=f"Campos requeridos faltantes: {', '.join(missing_fields)}",
             )
+
+        # Verificar que la carrera existe
+        carrera = (
+            db.query(Carrera)
+            .filter(Carrera.codigo == estudiante_data["carrera_codigo"])
+            .first()
+        )
+        if not carrera:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No existe carrera con código '{estudiante_data['carrera_codigo']}'",
+            )
+
+        # Verificar que no exista el registro
+        existing_registro = (
+            db.query(Estudiante)
+            .filter(Estudiante.registro == estudiante_data["registro"])
+            .first()
+        )
+        if existing_registro:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe un estudiante con el registro '{estudiante_data['registro']}'",
+            )
+
+        # Verificar que no exista el CI
+        existing_ci = (
+            db.query(Estudiante).filter(Estudiante.ci == estudiante_data["ci"]).first()
+        )
+        if existing_ci:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe un estudiante con el CI '{estudiante_data['ci']}'",
+            )
+
+        # Convertir carrera_codigo a carrera_id para el procesamiento
+        estudiante_data["carrera_id"] = carrera.id
 
         # Configurar rollback
         rollback_data = {
@@ -213,35 +254,83 @@ def create_estudiante(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{estudiante_id}")
+@router.put("/{registro}")
 def update_estudiante(
-    estudiante_id: int,
+    registro: str,
     estudiante_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
+    db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Actualizar estudiante (procesamiento síncrono con rollback)"""
     try:
         # Verificar que existe
-        from app.config.database import SessionLocal
+        existing_student = (
+            db.query(Estudiante).filter(Estudiante.registro == registro).first()
+        )
 
-        with SessionLocal() as db:
-            existing_student = (
-                db.query(Estudiante).filter(Estudiante.id == estudiante_id).first()
+        if not existing_student:
+            raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+        # Verificar registro único si se está cambiando
+        if (
+            "registro" in estudiante_data
+            and estudiante_data["registro"] != existing_student.registro
+        ):
+            duplicate_registro = (
+                db.query(Estudiante)
+                .filter(
+                    Estudiante.registro == estudiante_data["registro"],
+                    Estudiante.id != existing_student.id,
+                )
+                .first()
             )
+            if duplicate_registro:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ya existe un estudiante con el registro '{estudiante_data['registro']}'",
+                )
 
-            if not existing_student:
-                raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+        # Verificar CI único si se está cambiando
+        if "ci" in estudiante_data and estudiante_data["ci"] != existing_student.ci:
+            duplicate_ci = (
+                db.query(Estudiante)
+                .filter(
+                    Estudiante.ci == estudiante_data["ci"],
+                    Estudiante.id != existing_student.id,
+                )
+                .first()
+            )
+            if duplicate_ci:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ya existe un estudiante con el CI '{estudiante_data['ci']}'",
+                )
 
-        # Agregar ID a los datos
-        estudiante_data["id"] = estudiante_id
+        # Verificar carrera si se está cambiando
+        if "carrera_codigo" in estudiante_data:
+            carrera = (
+                db.query(Carrera)
+                .filter(Carrera.codigo == estudiante_data["carrera_codigo"])
+                .first()
+            )
+            if not carrera:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No existe carrera con código '{estudiante_data['carrera_codigo']}'",
+                )
+            estudiante_data["carrera_id"] = carrera.id
+
+        # Agregar registro original a los datos
+        estudiante_data["registro_original"] = registro
 
         # Configurar rollback con estado original
         rollback_data = {
             "operation": "update",
             "table": "estudiantes",
-            "record_id": estudiante_id,
+            "registro_original": registro,
             "original_data": {
+                "registro": existing_student.registro,
                 "nombre": existing_student.nombre,
                 "apellido": existing_student.apellido,
                 "ci": existing_student.ci,
@@ -263,7 +352,7 @@ def update_estudiante(
             "message": "Actualización en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "estudiante_id": estudiante_id,
+            "registro": registro,
             "check_status": f"/queue/tasks/{task_id}",
             "rollback_available": True,
         }
@@ -274,17 +363,25 @@ def update_estudiante(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{estudiante_id}")
+@router.delete("/{registro}")
 def delete_estudiante(
-    estudiante_id: int,
+    registro: str,
     priority: int = Query(3, ge=1, le=10, description="Prioridad de la tarea"),
+    db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Eliminar estudiante (procesamiento síncrono)"""
     try:
+        # Verificar que existe
+        estudiante = (
+            db.query(Estudiante).filter(Estudiante.registro == registro).first()
+        )
+        if not estudiante:
+            raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
         task_id = sync_thread_queue_manager.add_task(
             task_type="delete_estudiante",
-            data={"id": estudiante_id},
+            data={"registro": registro},
             priority=priority,
             max_retries=2,
         )
@@ -294,11 +391,13 @@ def delete_estudiante(
             "message": "Eliminación en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "estudiante_id": estudiante_id,
+            "registro": registro,
             "check_status": f"/queue/tasks/{task_id}",
             "warning": "Esta operación no se puede deshacer",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -328,7 +427,7 @@ def create_bulk_estudiantes(
                     "apellido",
                     "ci",
                     "contraseña",
-                    "carrera_id",
+                    "carrera_codigo",
                 ]
                 missing_fields = [
                     field for field in required_fields if field not in estudiante_data

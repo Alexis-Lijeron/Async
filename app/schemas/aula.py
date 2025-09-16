@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 
 class AulaBase(BaseModel):
+    codigo_aula: str  # NUEVO
     modulo: str
     aula: str
 
@@ -16,6 +17,7 @@ class AulaCreate(AulaBase):
 
 
 class AulaUpdate(BaseModel):
+    codigo_aula: Optional[str] = None  # NUEVO
     modulo: Optional[str] = None
     aula: Optional[str] = None
 

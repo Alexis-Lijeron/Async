@@ -6,6 +6,7 @@ from .base import BaseModel
 class Prerrequisito(BaseModel):
     __tablename__ = "prerrequisitos"
 
+    codigo_prerrequisito = Column(String(30), unique=True, nullable=False, index=True)
     materia_id = Column(Integer, ForeignKey("materias.id"), nullable=False)
     sigla_prerrequisito = Column(String(20), nullable=False)
 

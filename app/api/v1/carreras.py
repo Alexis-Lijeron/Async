@@ -81,9 +81,9 @@ def get_carreras(
     }
 
 
-@router.get("/{carrera_id}")
+@router.get("/{codigo}")
 def get_carrera(
-    carrera_id: int,
+    codigo: str,
     include_estudiantes: bool = Query(
         False, description="Incluir lista de estudiantes"
     ),
@@ -91,7 +91,7 @@ def get_carrera(
     current_user=Depends(get_current_active_user),
 ):
     """Ver carrera específica con detalles (SÍNCRONO)"""
-    carrera = db.query(Carrera).filter(Carrera.id == carrera_id).first()
+    carrera = db.query(Carrera).filter(Carrera.codigo == codigo).first()
     if not carrera:
         raise HTTPException(status_code=404, detail="Carrera no encontrada")
 
@@ -194,9 +194,9 @@ def create_carrera(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{carrera_id}")
+@router.put("/{codigo}")
 def update_carrera(
-    carrera_id: int,
+    codigo: str,
     carrera_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
@@ -205,7 +205,7 @@ def update_carrera(
     """Actualizar carrera (procesamiento síncrono con rollback)"""
     try:
         # Verificar que existe
-        existing_carrera = db.query(Carrera).filter(Carrera.id == carrera_id).first()
+        existing_carrera = db.query(Carrera).filter(Carrera.codigo == codigo).first()
         if not existing_carrera:
             raise HTTPException(status_code=404, detail="Carrera no encontrada")
 
@@ -217,7 +217,8 @@ def update_carrera(
             codigo_exists = (
                 db.query(Carrera)
                 .filter(
-                    Carrera.codigo == carrera_data["codigo"], Carrera.id != carrera_id
+                    Carrera.codigo == carrera_data["codigo"],
+                    Carrera.id != existing_carrera.id,
                 )
                 .first()
             )
@@ -227,14 +228,14 @@ def update_carrera(
                     detail=f"Ya existe una carrera con el código '{carrera_data['codigo']}'",
                 )
 
-        # Agregar ID a los datos
-        carrera_data["id"] = carrera_id
+        # Agregar código original a los datos
+        carrera_data["codigo_original"] = codigo
 
         # Configurar rollback con estado original
         rollback_data = {
             "operation": "update",
             "table": "carreras",
-            "record_id": carrera_id,
+            "codigo_original": codigo,
             "original_data": {
                 "codigo": existing_carrera.codigo,
                 "nombre": existing_carrera.nombre,
@@ -255,7 +256,7 @@ def update_carrera(
             "message": "Actualización en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "carrera_id": carrera_id,
+            "codigo": codigo,
             "check_status": f"/queue/tasks/{task_id}",
             "rollback_available": True,
         }
@@ -266,9 +267,9 @@ def update_carrera(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{carrera_id}")
+@router.delete("/{codigo}")
 def delete_carrera(
-    carrera_id: int,
+    codigo: str,
     force: bool = Query(
         False, description="Forzar eliminación aunque tenga estudiantes"
     ),
@@ -279,13 +280,13 @@ def delete_carrera(
     """Eliminar carrera"""
     try:
         # Verificar que existe
-        carrera = db.query(Carrera).filter(Carrera.id == carrera_id).first()
+        carrera = db.query(Carrera).filter(Carrera.codigo == codigo).first()
         if not carrera:
             raise HTTPException(status_code=404, detail="Carrera no encontrada")
 
         # Verificar si tiene estudiantes
         estudiantes_count = (
-            db.query(Estudiante).filter(Estudiante.carrera_id == carrera_id).count()
+            db.query(Estudiante).filter(Estudiante.carrera_id == carrera.id).count()
         )
         if estudiantes_count > 0 and not force:
             raise HTTPException(
@@ -295,7 +296,7 @@ def delete_carrera(
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="delete_carrera",
-            data={"id": carrera_id, "force": force},
+            data={"codigo": codigo, "force": force},
             priority=priority,
             max_retries=2,
         )
@@ -305,7 +306,7 @@ def delete_carrera(
             "message": "Eliminación en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "carrera_id": carrera_id,
+            "codigo": codigo,
             "students_affected": estudiantes_count if force else 0,
             "check_status": f"/queue/tasks/{task_id}",
             "warning": "Esta operación no se puede deshacer"
@@ -322,9 +323,9 @@ def delete_carrera(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{carrera_id}/estudiantes")
+@router.get("/{codigo}/estudiantes")
 def get_carrera_estudiantes(
-    carrera_id: int,
+    codigo: str,
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
     search: Optional[str] = Query(None, description="Buscar estudiantes"),
@@ -333,12 +334,12 @@ def get_carrera_estudiantes(
 ):
     """Obtener estudiantes de una carrera específica con paginación"""
     # Verificar que la carrera existe
-    carrera = db.query(Carrera).filter(Carrera.id == carrera_id).first()
+    carrera = db.query(Carrera).filter(Carrera.codigo == codigo).first()
     if not carrera:
         raise HTTPException(status_code=404, detail="Carrera no encontrada")
 
     def query_estudiantes_carrera(db: Session, offset: int, limit: int, **kwargs):
-        query = db.query(Estudiante).filter(Estudiante.carrera_id == carrera_id)
+        query = db.query(Estudiante).filter(Estudiante.carrera_id == carrera.id)
 
         if search:
             search_pattern = f"%{search}%"
@@ -368,7 +369,7 @@ def get_carrera_estudiantes(
 
     results, metadata = sync_smart_paginator.get_next_page(
         session_id=session_id,
-        endpoint=f"carrera_{carrera_id}_estudiantes",
+        endpoint=f"carrera_{codigo}_estudiantes",
         query_function=query_estudiantes_carrera,
         query_params={"search": search},
         page_size=page_size,
@@ -382,30 +383,4 @@ def get_carrera_estudiantes(
         },
         "estudiantes": results,
         "pagination": metadata,
-    }
-
-
-@router.get("/search/codigo/{codigo}")
-def search_carrera_by_codigo(
-    codigo: str,
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user),
-):
-    """Buscar carrera por código exacto"""
-    carrera = db.query(Carrera).filter(Carrera.codigo.ilike(codigo)).first()
-    if not carrera:
-        raise HTTPException(
-            status_code=404, detail=f"No se encontró carrera con código '{codigo}'"
-        )
-
-    estudiantes_count = (
-        db.query(Estudiante).filter(Estudiante.carrera_id == carrera.id).count()
-    )
-
-    return {
-        "id": carrera.id,
-        "codigo": carrera.codigo,
-        "nombre": carrera.nombre,
-        "estudiantes_count": estudiantes_count,
-        "created_at": carrera.created_at.isoformat() if carrera.created_at else None,
     }

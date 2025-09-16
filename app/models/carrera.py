@@ -6,7 +6,7 @@ from .base import BaseModel
 class Carrera(BaseModel):
     __tablename__ = "carreras"
 
-    codigo = Column(String(10), unique=True, nullable=False, index=True)
+    codigo = Column(String(10), unique=True, nullable=False, index=True)  
     nombre = Column(String(200), nullable=False)
 
     # Relationships

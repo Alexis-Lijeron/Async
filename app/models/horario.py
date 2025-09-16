@@ -6,6 +6,7 @@ from .base import BaseModel
 class Horario(BaseModel):
     __tablename__ = "horarios"
 
+    codigo_horario = Column(String(30), unique=True, nullable=False, index=True)
     dia = Column(String(20), nullable=False)
     hora_inicio = Column(Time, nullable=False)
     hora_final = Column(Time, nullable=False)

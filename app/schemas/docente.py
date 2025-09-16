@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 
 class DocenteBase(BaseModel):
+    codigo_docente: str  # NUEVO
     nombre: str
     apellido: str
 
@@ -16,13 +17,13 @@ class DocenteCreate(DocenteBase):
 
 
 class DocenteUpdate(BaseModel):
+    codigo_docente: Optional[str] = None  # NUEVO
     nombre: Optional[str] = None
     apellido: Optional[str] = None
 
 
 class DocenteInDB(DocenteBase):
     model_config = ConfigDict(from_attributes=True)
-
     id: int
     created_at: datetime
     updated_at: datetime

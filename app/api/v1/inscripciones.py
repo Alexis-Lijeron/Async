@@ -20,10 +20,17 @@ router = APIRouter()
 def get_inscripciones(
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
-    estudiante_id: Optional[int] = Query(None, description="Filtrar por estudiante"),
-    grupo_id: Optional[int] = Query(None, description="Filtrar por grupo"),
-    gestion_id: Optional[int] = Query(None, description="Filtrar por gestión"),
+    estudiante_registro: Optional[str] = Query(
+        None, description="Filtrar por registro de estudiante"
+    ),
+    grupo_codigo: Optional[str] = Query(
+        None, description="Filtrar por código de grupo"
+    ),
+    gestion_codigo: Optional[str] = Query(
+        None, description="Filtrar por código de gestión"
+    ),
     semestre: Optional[int] = Query(None, description="Filtrar por semestre"),
+    search: Optional[str] = Query(None, description="Buscar por código de inscripción"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
@@ -32,14 +39,35 @@ def get_inscripciones(
     def query_inscripciones(db: Session, offset: int, limit: int, **kwargs):
         query = db.query(Inscripcion)
 
-        if estudiante_id:
-            query = query.filter(Inscripcion.estudiante_id == estudiante_id)
-        if grupo_id:
-            query = query.filter(Inscripcion.grupo_id == grupo_id)
-        if gestion_id:
-            query = query.filter(Inscripcion.gestion_id == gestion_id)
+        if estudiante_registro:
+            estudiante = (
+                db.query(Estudiante)
+                .filter(Estudiante.registro == estudiante_registro)
+                .first()
+            )
+            if estudiante:
+                query = query.filter(Inscripcion.estudiante_id == estudiante.id)
+
+        if grupo_codigo:
+            grupo = db.query(Grupo).filter(Grupo.codigo_grupo == grupo_codigo).first()
+            if grupo:
+                query = query.filter(Inscripcion.grupo_id == grupo.id)
+
+        if gestion_codigo:
+            gestion = (
+                db.query(Gestion)
+                .filter(Gestion.codigo_gestion == gestion_codigo)
+                .first()
+            )
+            if gestion:
+                query = query.filter(Inscripcion.gestion_id == gestion.id)
+
         if semestre:
             query = query.filter(Inscripcion.semestre == semestre)
+
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(Inscripcion.codigo_inscripcion.ilike(search_pattern))
 
         inscripciones = query.offset(offset).limit(limit).all()
 
@@ -64,6 +92,7 @@ def get_inscripciones(
             result.append(
                 {
                     "id": i.id,
+                    "codigo_inscripcion": i.codigo_inscripcion,
                     "semestre": i.semestre,
                     "estudiante": (
                         {
@@ -79,6 +108,7 @@ def get_inscripciones(
                     "grupo": (
                         {
                             "id": grupo.id,
+                            "codigo_grupo": grupo.codigo_grupo,
                             "descripcion": grupo.descripcion,
                         }
                         if grupo
@@ -97,6 +127,7 @@ def get_inscripciones(
                     "docente": (
                         {
                             "id": docente.id,
+                            "codigo_docente": docente.codigo_docente,
                             "nombre_completo": f"{docente.nombre} {docente.apellido}",
                         }
                         if docente
@@ -105,6 +136,7 @@ def get_inscripciones(
                     "gestion": (
                         {
                             "id": gestion.id,
+                            "codigo_gestion": gestion.codigo_gestion,
                             "semestre": gestion.semestre,
                             "año": gestion.año,
                             "descripcion": f"SEM {gestion.semestre}/{gestion.año}",
@@ -128,10 +160,11 @@ def get_inscripciones(
         endpoint="inscripciones_list",
         query_function=query_inscripciones,
         query_params={
-            "estudiante_id": estudiante_id,
-            "grupo_id": grupo_id,
-            "gestion_id": gestion_id,
+            "estudiante_registro": estudiante_registro,
+            "grupo_codigo": grupo_codigo,
+            "gestion_codigo": gestion_codigo,
             "semestre": semestre,
+            "search": search,
         },
         page_size=page_size,
     )
@@ -140,10 +173,11 @@ def get_inscripciones(
         "data": results,
         "pagination": metadata,
         "filters": {
-            "estudiante_id": estudiante_id,
-            "grupo_id": grupo_id,
-            "gestion_id": gestion_id,
+            "estudiante_registro": estudiante_registro,
+            "grupo_codigo": grupo_codigo,
+            "gestion_codigo": gestion_codigo,
             "semestre": semestre,
+            "search": search,
         },
     }
 
@@ -152,7 +186,9 @@ def get_inscripciones(
 def get_mis_inscripciones(
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
-    gestion_id: Optional[int] = Query(None, description="Filtrar por gestión"),
+    gestion_codigo: Optional[str] = Query(
+        None, description="Filtrar por código de gestión"
+    ),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
@@ -163,8 +199,14 @@ def get_mis_inscripciones(
             Inscripcion.estudiante_id == current_user.id
         )
 
-        if gestion_id:
-            query = query.filter(Inscripcion.gestion_id == gestion_id)
+        if gestion_codigo:
+            gestion = (
+                db.query(Gestion)
+                .filter(Gestion.codigo_gestion == gestion_codigo)
+                .first()
+            )
+            if gestion:
+                query = query.filter(Inscripcion.gestion_id == gestion.id)
 
         inscripciones = query.offset(offset).limit(limit).all()
 
@@ -186,10 +228,12 @@ def get_mis_inscripciones(
             result.append(
                 {
                     "id": i.id,
+                    "codigo_inscripcion": i.codigo_inscripcion,
                     "semestre": i.semestre,
                     "grupo": (
                         {
                             "id": grupo.id,
+                            "codigo_grupo": grupo.codigo_grupo,
                             "descripcion": grupo.descripcion,
                         }
                         if grupo
@@ -206,11 +250,17 @@ def get_mis_inscripciones(
                         else None
                     ),
                     "docente": (
-                        f"{docente.nombre} {docente.apellido}" if docente else None
+                        {
+                            "codigo_docente": docente.codigo_docente,
+                            "nombre_completo": f"{docente.nombre} {docente.apellido}",
+                        }
+                        if docente
+                        else None
                     ),
                     "gestion": (
                         {
                             "id": gestion.id,
+                            "codigo_gestion": gestion.codigo_gestion,
                             "descripcion": f"SEM {gestion.semestre}/{gestion.año}",
                             "semestre": gestion.semestre,
                             "año": gestion.año,
@@ -233,14 +283,14 @@ def get_mis_inscripciones(
         session_id=session_id,
         endpoint="mis_inscripciones",
         query_function=query_mis_inscripciones,
-        query_params={"gestion_id": gestion_id},
+        query_params={"gestion_codigo": gestion_codigo},
         page_size=page_size,
     )
 
     return {
         "data": results,
         "pagination": metadata,
-        "filters": {"gestion_id": gestion_id},
+        "filters": {"gestion_codigo": gestion_codigo},
         "estudiante": {
             "id": current_user.id,
             "registro": current_user.registro,
@@ -249,14 +299,18 @@ def get_mis_inscripciones(
     }
 
 
-@router.get("/{inscripcion_id}")
+@router.get("/{codigo_inscripcion}")
 def get_inscripcion(
-    inscripcion_id: int,
+    codigo_inscripcion: str,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Ver inscripción específica con detalles completos"""
-    inscripcion = db.query(Inscripcion).filter(Inscripcion.id == inscripcion_id).first()
+    inscripcion = (
+        db.query(Inscripcion)
+        .filter(Inscripcion.codigo_inscripcion == codigo_inscripcion)
+        .first()
+    )
     if not inscripcion:
         raise HTTPException(status_code=404, detail="Inscripción no encontrada")
 
@@ -275,6 +329,7 @@ def get_inscripcion(
 
     return {
         "id": inscripcion.id,
+        "codigo_inscripcion": inscripcion.codigo_inscripcion,
         "semestre": inscripcion.semestre,
         "estudiante": (
             {
@@ -290,6 +345,7 @@ def get_inscripcion(
         "grupo": (
             {
                 "id": grupo.id,
+                "codigo_grupo": grupo.codigo_grupo,
                 "descripcion": grupo.descripcion,
                 "horario_id": grupo.horario_id,
             }
@@ -310,6 +366,7 @@ def get_inscripcion(
         "docente": (
             {
                 "id": docente.id,
+                "codigo_docente": docente.codigo_docente,
                 "nombre": docente.nombre,
                 "apellido": docente.apellido,
                 "nombre_completo": f"{docente.nombre} {docente.apellido}",
@@ -320,6 +377,7 @@ def get_inscripcion(
         "gestion": (
             {
                 "id": gestion.id,
+                "codigo_gestion": gestion.codigo_gestion,
                 "semestre": gestion.semestre,
                 "año": gestion.año,
                 "descripcion": f"SEM {gestion.semestre}/{gestion.año}",
@@ -346,7 +404,12 @@ def inscribirse_a_grupo(
     """Inscribirse a un grupo (el estudiante actual)"""
     try:
         # Validar campos requeridos
-        required_fields = ["grupo_id", "gestion_id", "semestre"]
+        required_fields = [
+            "codigo_inscripcion",
+            "grupo_codigo",
+            "gestion_codigo",
+            "semestre",
+        ]
         missing_fields = [
             field for field in required_fields if field not in inscripcion_data
         ]
@@ -357,27 +420,51 @@ def inscribirse_a_grupo(
                 detail=f"Campos requeridos faltantes: {', '.join(missing_fields)}",
             )
 
+        # Verificar que no exista el código de inscripción
+        existing_codigo = (
+            db.query(Inscripcion)
+            .filter(
+                Inscripcion.codigo_inscripcion == inscripcion_data["codigo_inscripcion"]
+            )
+            .first()
+        )
+        if existing_codigo:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe una inscripción con el código '{inscripcion_data['codigo_inscripcion']}'",
+            )
+
         # Verificar que el grupo existe
-        grupo = db.query(Grupo).filter(Grupo.id == inscripcion_data["grupo_id"]).first()
+        grupo = (
+            db.query(Grupo)
+            .filter(Grupo.codigo_grupo == inscripcion_data["grupo_codigo"])
+            .first()
+        )
         if not grupo:
-            raise HTTPException(status_code=400, detail="Grupo no encontrado")
+            raise HTTPException(
+                status_code=400,
+                detail=f"No existe grupo con código '{inscripcion_data['grupo_codigo']}'",
+            )
 
         # Verificar que la gestión existe
         gestion = (
             db.query(Gestion)
-            .filter(Gestion.id == inscripcion_data["gestion_id"])
+            .filter(Gestion.codigo_gestion == inscripcion_data["gestion_codigo"])
             .first()
         )
         if not gestion:
-            raise HTTPException(status_code=400, detail="Gestión no encontrada")
+            raise HTTPException(
+                status_code=400,
+                detail=f"No existe gestión con código '{inscripcion_data['gestion_codigo']}'",
+            )
 
         # Verificar que el estudiante no esté ya inscrito en el mismo grupo
         existing = (
             db.query(Inscripcion)
             .filter(
                 Inscripcion.estudiante_id == current_user.id,
-                Inscripcion.grupo_id == inscripcion_data["grupo_id"],
-                Inscripcion.gestion_id == inscripcion_data["gestion_id"],
+                Inscripcion.grupo_id == grupo.id,
+                Inscripcion.gestion_id == gestion.id,
             )
             .first()
         )
@@ -387,8 +474,10 @@ def inscribirse_a_grupo(
                 detail="Ya estás inscrito en este grupo para esta gestión",
             )
 
-        # Agregar el ID del estudiante actual
+        # Agregar el ID del estudiante actual y convertir códigos a IDs
         inscripcion_data["estudiante_id"] = current_user.id
+        inscripcion_data["grupo_id"] = grupo.id
+        inscripcion_data["gestion_id"] = gestion.id
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="create_inscripcion",
@@ -401,7 +490,7 @@ def inscribirse_a_grupo(
             "task_id": task_id,
             "message": "Inscripción en cola de procesamiento",
             "status": "pending",
-            "grupo_id": inscripcion_data["grupo_id"],
+            "grupo_codigo": inscripcion_data["grupo_codigo"],
             "check_status": f"/queue/tasks/{task_id}",
             "estimated_processing": "1-3 segundos",
         }
@@ -422,7 +511,13 @@ def create_inscripcion(
     """Crear inscripción (para administradores)"""
     try:
         # Validar campos requeridos
-        required_fields = ["estudiante_id", "grupo_id", "gestion_id", "semestre"]
+        required_fields = [
+            "codigo_inscripcion",
+            "estudiante_registro",
+            "grupo_codigo",
+            "gestion_codigo",
+            "semestre",
+        ]
         missing_fields = [
             field for field in required_fields if field not in inscripcion_data
         ]
@@ -433,23 +528,58 @@ def create_inscripcion(
                 detail=f"Campos requeridos faltantes: {', '.join(missing_fields)}",
             )
 
-        # Verificar referencias
-        if (
-            not db.query(Estudiante)
-            .filter(Estudiante.id == inscripcion_data["estudiante_id"])
+        # Verificar que no exista el código de inscripción
+        existing_codigo = (
+            db.query(Inscripcion)
+            .filter(
+                Inscripcion.codigo_inscripcion == inscripcion_data["codigo_inscripcion"]
+            )
             .first()
-        ):
-            raise HTTPException(status_code=400, detail="Estudiante no encontrado")
+        )
+        if existing_codigo:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe una inscripción con el código '{inscripcion_data['codigo_inscripcion']}'",
+            )
 
-        if not db.query(Grupo).filter(Grupo.id == inscripcion_data["grupo_id"]).first():
-            raise HTTPException(status_code=400, detail="Grupo no encontrado")
-
-        if (
-            not db.query(Gestion)
-            .filter(Gestion.id == inscripcion_data["gestion_id"])
+        # Verificar referencias y convertir códigos a IDs
+        estudiante = (
+            db.query(Estudiante)
+            .filter(Estudiante.registro == inscripcion_data["estudiante_registro"])
             .first()
-        ):
-            raise HTTPException(status_code=400, detail="Gestión no encontrada")
+        )
+        if not estudiante:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No existe estudiante con registro '{inscripcion_data['estudiante_registro']}'",
+            )
+
+        grupo = (
+            db.query(Grupo)
+            .filter(Grupo.codigo_grupo == inscripcion_data["grupo_codigo"])
+            .first()
+        )
+        if not grupo:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No existe grupo con código '{inscripcion_data['grupo_codigo']}'",
+            )
+
+        gestion = (
+            db.query(Gestion)
+            .filter(Gestion.codigo_gestion == inscripcion_data["gestion_codigo"])
+            .first()
+        )
+        if not gestion:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No existe gestión con código '{inscripcion_data['gestion_codigo']}'",
+            )
+
+        # Convertir códigos a IDs
+        inscripcion_data["estudiante_id"] = estudiante.id
+        inscripcion_data["grupo_id"] = grupo.id
+        inscripcion_data["gestion_id"] = gestion.id
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="create_inscripcion",
@@ -471,9 +601,9 @@ def create_inscripcion(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{inscripcion_id}")
+@router.put("/{codigo_inscripcion}")
 def update_inscripcion(
-    inscripcion_id: int,
+    codigo_inscripcion: str,
     inscripcion_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
@@ -483,13 +613,55 @@ def update_inscripcion(
     try:
         # Verificar que existe
         existing_inscripcion = (
-            db.query(Inscripcion).filter(Inscripcion.id == inscripcion_id).first()
+            db.query(Inscripcion)
+            .filter(Inscripcion.codigo_inscripcion == codigo_inscripcion)
+            .first()
         )
         if not existing_inscripcion:
             raise HTTPException(status_code=404, detail="Inscripción no encontrada")
 
-        # Agregar ID a los datos
-        inscripcion_data["id"] = inscripcion_id
+        # Convertir códigos a IDs si se proporcionan
+        if "estudiante_registro" in inscripcion_data:
+            estudiante = (
+                db.query(Estudiante)
+                .filter(Estudiante.registro == inscripcion_data["estudiante_registro"])
+                .first()
+            )
+            if not estudiante:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No existe estudiante con registro '{inscripcion_data['estudiante_registro']}'",
+                )
+            inscripcion_data["estudiante_id"] = estudiante.id
+
+        if "grupo_codigo" in inscripcion_data:
+            grupo = (
+                db.query(Grupo)
+                .filter(Grupo.codigo_grupo == inscripcion_data["grupo_codigo"])
+                .first()
+            )
+            if not grupo:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No existe grupo con código '{inscripcion_data['grupo_codigo']}'",
+                )
+            inscripcion_data["grupo_id"] = grupo.id
+
+        if "gestion_codigo" in inscripcion_data:
+            gestion = (
+                db.query(Gestion)
+                .filter(Gestion.codigo_gestion == inscripcion_data["gestion_codigo"])
+                .first()
+            )
+            if not gestion:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No existe gestión con código '{inscripcion_data['gestion_codigo']}'",
+                )
+            inscripcion_data["gestion_id"] = gestion.id
+
+        # Agregar código original a los datos
+        inscripcion_data["codigo_inscripcion_original"] = codigo_inscripcion
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="update_inscripcion",
@@ -502,7 +674,7 @@ def update_inscripcion(
             "task_id": task_id,
             "message": "Actualización en cola de procesamiento",
             "status": "pending",
-            "inscripcion_id": inscripcion_id,
+            "codigo_inscripcion": codigo_inscripcion,
             "check_status": f"/queue/tasks/{task_id}",
         }
 
@@ -512,9 +684,9 @@ def update_inscripcion(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{inscripcion_id}")
+@router.delete("/{codigo_inscripcion}")
 def delete_inscripcion(
-    inscripcion_id: int,
+    codigo_inscripcion: str,
     priority: int = Query(3, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
@@ -523,7 +695,9 @@ def delete_inscripcion(
     try:
         # Verificar que existe
         inscripcion = (
-            db.query(Inscripcion).filter(Inscripcion.id == inscripcion_id).first()
+            db.query(Inscripcion)
+            .filter(Inscripcion.codigo_inscripcion == codigo_inscripcion)
+            .first()
         )
         if not inscripcion:
             raise HTTPException(status_code=404, detail="Inscripción no encontrada")
@@ -538,7 +712,7 @@ def delete_inscripcion(
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="delete_inscripcion",
-            data={"id": inscripcion_id},
+            data={"codigo_inscripcion": codigo_inscripcion},
             priority=priority,
             max_retries=2,
         )
@@ -547,7 +721,7 @@ def delete_inscripcion(
             "task_id": task_id,
             "message": "Eliminación en cola de procesamiento",
             "status": "pending",
-            "inscripcion_id": inscripcion_id,
+            "codigo_inscripcion": codigo_inscripcion,
             "check_status": f"/queue/tasks/{task_id}",
             "warning": "Esta operación no se puede deshacer",
         }
@@ -560,15 +734,21 @@ def delete_inscripcion(
 
 @router.get("/estadisticas/resumen")
 def get_estadisticas_inscripciones(
-    gestion_id: Optional[int] = Query(None, description="Filtrar por gestión"),
+    gestion_codigo: Optional[str] = Query(
+        None, description="Filtrar por código de gestión"
+    ),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Obtener estadísticas de inscripciones"""
     query = db.query(Inscripcion)
 
-    if gestion_id:
-        query = query.filter(Inscripcion.gestion_id == gestion_id)
+    if gestion_codigo:
+        gestion = (
+            db.query(Gestion).filter(Gestion.codigo_gestion == gestion_codigo).first()
+        )
+        if gestion:
+            query = query.filter(Inscripcion.gestion_id == gestion.id)
 
     total_inscripciones = query.count()
 
@@ -582,9 +762,13 @@ def get_estadisticas_inscripciones(
     from sqlalchemy import func
 
     top_grupos = (
-        db.query(Grupo.descripcion, func.count(Inscripcion.id).label("count"))
+        db.query(
+            Grupo.codigo_grupo,
+            Grupo.descripcion,
+            func.count(Inscripcion.id).label("count"),
+        )
         .join(Inscripcion, Grupo.id == Inscripcion.grupo_id)
-        .group_by(Grupo.id, Grupo.descripcion)
+        .group_by(Grupo.id, Grupo.codigo_grupo, Grupo.descripcion)
         .order_by(func.count(Inscripcion.id).desc())
         .limit(5)
         .all()
@@ -594,7 +778,8 @@ def get_estadisticas_inscripciones(
         "total_inscripciones": total_inscripciones,
         "por_semestre": semestres,
         "top_grupos": [
-            {"grupo": grupo, "inscripciones": count} for grupo, count in top_grupos
+            {"codigo_grupo": codigo, "descripcion": descripcion, "inscripciones": count}
+            for codigo, descripcion, count in top_grupos
         ],
-        "gestion_filtrada": gestion_id,
+        "gestion_filtrada": gestion_codigo,
     }

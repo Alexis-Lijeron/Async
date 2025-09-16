@@ -4,7 +4,7 @@ from typing import List
 
 class Settings(BaseSettings):
     # Database
-    database_url: str  
+    database_url: str
 
     # JWT
     secret_key: str
@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Pagination
     default_page_size: int = 20
     max_page_size: int = 100
+    # Threading (faltaban)
+    max_workers: int = 2
+    queue_check_interval: int = 5
 
     @property
     def database_url_sync(self) -> str:

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 
 class InscripcionBase(BaseModel):
+    codigo_inscripcion: str  # NUEVO
     semestre: int
     gestion_id: int
     estudiante_id: int
@@ -20,6 +21,7 @@ class InscripcionCreate(InscripcionBase):
 
 
 class InscripcionUpdate(BaseModel):
+    codigo_inscripcion: Optional[str] = None  # NUEVO
     semestre: Optional[int] = None
     gestion_id: Optional[int] = None
     estudiante_id: Optional[int] = None
@@ -28,7 +30,6 @@ class InscripcionUpdate(BaseModel):
 
 class InscripcionInDB(InscripcionBase):
     model_config = ConfigDict(from_attributes=True)
-
     id: int
     created_at: datetime
     updated_at: datetime

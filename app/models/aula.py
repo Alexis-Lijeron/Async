@@ -6,6 +6,7 @@ from .base import BaseModel
 class Aula(BaseModel):
     __tablename__ = "aulas"
 
+    codigo_aula = Column(String(20), unique=True, nullable=False, index=True)
     modulo = Column(String(10), nullable=False)
     aula = Column(String(20), nullable=False)
 

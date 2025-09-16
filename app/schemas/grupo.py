@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 
 class GrupoBase(BaseModel):
+    codigo_grupo: str  # NUEVO
     descripcion: str
     docente_id: int
     gestion_id: int
@@ -24,6 +25,7 @@ class GrupoCreate(GrupoBase):
 
 
 class GrupoUpdate(BaseModel):
+    codigo_grupo: Optional[str] = None  # NUEVO
     descripcion: Optional[str] = None
     docente_id: Optional[int] = None
     gestion_id: Optional[int] = None
@@ -33,7 +35,6 @@ class GrupoUpdate(BaseModel):
 
 class GrupoInDB(GrupoBase):
     model_config = ConfigDict(from_attributes=True)
-
     id: int
     created_at: datetime
     updated_at: datetime

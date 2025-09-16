@@ -21,20 +21,22 @@ from app.models.detalle import Detalle
 
 
 def seed_database():
-    """Poblar la base de datos con datos iniciales"""
+    """Poblar la base de datos con datos iniciales - VERSION ACTUALIZADA"""
 
     with SessionLocal() as db:
         try:
-            print("🌱 Iniciando seeding de la base de datos...")
+            print(
+                "🌱 Iniciando seeding de la base de datos con identificadores únicos..."
+            )
 
-            # 1. Crear Carrera
+            # 1. Crear Carrera (ya tiene código único)
             print("🎓 Creando carrera...")
             carrera = Carrera(codigo="INF187", nombre="Ingeniería Informática")
             db.add(carrera)
             db.commit()
             db.refresh(carrera)
 
-            # 2. Crear Plan de Estudios
+            # 2. Crear Plan de Estudios (ya tiene código único)
             print("📚 Creando plan de estudios...")
             plan_estudio = PlanEstudio(
                 codigo="INF187", cant_semestre=10, plan="187-3", carrera_id=carrera.id
@@ -43,7 +45,7 @@ def seed_database():
             db.commit()
             db.refresh(plan_estudio)
 
-            # 3. Crear Niveles (1-10 semestres)
+            # 3. Crear Niveles (ya tienen nivel único)
             print("📊 Creando niveles...")
             niveles = []
             for i in range(1, 11):
@@ -52,11 +54,10 @@ def seed_database():
                 niveles.append(nivel)
             db.commit()
 
-            # Refresh niveles para obtener IDs
             for nivel in niveles:
                 db.refresh(nivel)
 
-            # 4. Crear Materias por semestre
+            # 4. Crear Materias (ya tienen sigla única)
             print("📖 Creando materias...")
             materias_data = [
                 # SEM 1
@@ -207,13 +208,12 @@ def seed_database():
 
             db.commit()
 
-            # Refresh materias
             for materia in materias_dict.values():
                 db.refresh(materia)
 
-            # 5. Crear Prerrequisitos
+            # 5. Crear Prerrequisitos con códigos únicos
             print("🔗 Creando prerrequisitos...")
-            prerrequisitos = [
+            prerrequisitos_data = [
                 ("MAT101", "MAT102"),
                 ("MAT102", "MAT207"),
                 ("MAT103", "MAT207"),
@@ -231,9 +231,10 @@ def seed_database():
                 ("INF119", "INF319"),
             ]
 
-            for sigla_pre, sigla_materia in prerrequisitos:
+            for i, (sigla_pre, sigla_materia) in enumerate(prerrequisitos_data):
                 if sigla_materia in materias_dict:
                     prerrequisito = Prerrequisito(
+                        codigo_prerrequisito=f"PREREQ-{i+1:03d}",  # NUEVO: PREREQ-001, PREREQ-002, etc.
                         materia_id=materias_dict[sigla_materia].id,
                         sigla_prerrequisito=sigla_pre,
                     )
@@ -241,7 +242,7 @@ def seed_database():
 
             db.commit()
 
-            # 6. Crear Docentes
+            # 6. Crear Docentes con códigos únicos
             print("👨‍🏫 Creando docentes...")
             docentes_data = [
                 ("María", "Gutiérrez"),
@@ -253,8 +254,12 @@ def seed_database():
             ]
 
             docentes = []
-            for nombre, apellido in docentes_data:
-                docente = Docente(nombre=nombre, apellido=apellido)
+            for i, (nombre, apellido) in enumerate(docentes_data):
+                docente = Docente(
+                    codigo_docente=f"DOC-{i+1:03d}",  # NUEVO: DOC-001, DOC-002, etc.
+                    nombre=nombre,
+                    apellido=apellido,
+                )
                 db.add(docente)
                 docentes.append(docente)
 
@@ -264,7 +269,7 @@ def seed_database():
             for docente in docentes:
                 db.refresh(docente)
 
-            # 7. Crear Estudiantes
+            # 7. Crear Estudiantes (ya tienen registro y CI únicos)
             print("👨‍🎓 Creando estudiantes...")
             estudiantes_data = [
                 ("Victor", "Salvatierra", "VIC001", "12345671"),
@@ -296,7 +301,7 @@ def seed_database():
             for estudiante in estudiantes:
                 db.refresh(estudiante)
 
-            # 8. Crear Aulas
+            # 8. Crear Aulas con códigos únicos
             print("🏫 Creando aulas...")
             aulas_data = [
                 ("236", "10"),
@@ -308,8 +313,12 @@ def seed_database():
             ]
 
             aulas = []
-            for modulo, aula_num in aulas_data:
-                aula = Aula(modulo=modulo, aula=aula_num)
+            for i, (modulo, aula_num) in enumerate(aulas_data):
+                aula = Aula(
+                    codigo_aula=f"AULA-{modulo}-{aula_num}",  # NUEVO: AULA-236-10, AULA-236-12, etc.
+                    modulo=modulo,
+                    aula=aula_num,
+                )
                 db.add(aula)
                 aulas.append(aula)
 
@@ -319,7 +328,7 @@ def seed_database():
             for aula in aulas:
                 db.refresh(aula)
 
-            # 9. Crear Horarios
+            # 9. Crear Horarios con códigos únicos
             print("⏰ Creando horarios...")
             horarios_data = [
                 ("Lunes", dt_time(8, 0), dt_time(10, 0), aulas[0].id),
@@ -330,8 +339,12 @@ def seed_database():
             ]
 
             horarios = []
-            for dia, hora_inicio, hora_final, aula_id in horarios_data:
+            for i, (dia, hora_inicio, hora_final, aula_id) in enumerate(horarios_data):
+                # Generar código único basado en día y horas
+                codigo_horario = f"HOR-{dia[:3].upper()}-{hora_inicio.strftime('%H%M')}-{hora_final.strftime('%H%M')}"
+
                 horario = Horario(
+                    codigo_horario=codigo_horario,  # NUEVO: HOR-LUN-0800-1000, HOR-MAR-1000-1200, etc.
                     dia=dia,
                     hora_inicio=hora_inicio,
                     hora_final=hora_final,
@@ -346,13 +359,17 @@ def seed_database():
             for horario in horarios:
                 db.refresh(horario)
 
-            # 10. Crear Gestiones
+            # 10. Crear Gestiones con códigos únicos
             print("📅 Creando gestiones...")
             gestiones_data = [(1, 2025), (2, 2025), (3, 2025), (4, 2025)]
 
             gestiones = []
             for semestre, año in gestiones_data:
-                gestion = Gestion(semestre=semestre, año=año)
+                gestion = Gestion(
+                    codigo_gestion=f"GEST-{año}-{semestre}",  # NUEVO: GEST-2025-1, GEST-2025-2, etc.
+                    semestre=semestre,
+                    año=año,
+                )
                 db.add(gestion)
                 gestiones.append(gestion)
 
@@ -362,7 +379,7 @@ def seed_database():
             for gestion in gestiones:
                 db.refresh(gestion)
 
-            # 11. Crear Grupos
+            # 11. Crear Grupos con códigos únicos
             print("👥 Creando grupos...")
             grupos_data = [
                 (
@@ -389,15 +406,20 @@ def seed_database():
             ]
 
             grupos = []
-            for (
+            for i, (
                 descripcion,
                 docente_id,
                 gestion_id,
                 sigla_materia,
                 horario_id,
-            ) in grupos_data:
+            ) in enumerate(grupos_data):
                 if sigla_materia in materias_dict:
+                    # Generar código único basado en materia y gestión
+                    gestion_obj = next(g for g in gestiones if g.id == gestion_id)
+                    codigo_grupo = f"GRP-{sigla_materia}-{gestion_obj.año}-{gestion_obj.semestre}-{i+1:02d}"
+
                     grupo = Grupo(
+                        codigo_grupo=codigo_grupo,  # NUEVO: GRP-INF120-2025-2-01, GRP-MAT101-2025-1-02, etc.
                         descripcion=descripcion,
                         docente_id=docente_id,
                         gestion_id=gestion_id,
@@ -413,7 +435,7 @@ def seed_database():
             for grupo in grupos:
                 db.refresh(grupo)
 
-            # 12. Crear Inscripciones
+            # 12. Crear Inscripciones con códigos únicos
             print("📝 Creando inscripciones...")
             inscripciones_data = [
                 (1, gestiones[0].id, estudiantes[0].id, grupos[0].id),
@@ -421,8 +443,17 @@ def seed_database():
                 (1, gestiones[0].id, estudiantes[2].id, grupos[0].id),
             ]
 
-            for semestre, gestion_id, estudiante_id, grupo_id in inscripciones_data:
+            for i, (semestre, gestion_id, estudiante_id, grupo_id) in enumerate(
+                inscripciones_data
+            ):
+                estudiante_obj = next(e for e in estudiantes if e.id == estudiante_id)
+                grupo_obj = next(g for g in grupos if g.id == grupo_id)
+                gestion_obj = next(gest for gest in gestiones if gest.id == gestion_id)
+
+                codigo_inscripcion = f"INS-{estudiante_obj.registro}-{grupo_obj.codigo_grupo.split('-')[1]}-{gestion_obj.año}-{gestion_obj.semestre}"
+
                 inscripcion = Inscripcion(
+                    codigo_inscripcion=codigo_inscripcion,  # NUEVO: INS-VIC001-INF120-2025-2, etc.
                     semestre=semestre,
                     gestion_id=gestion_id,
                     estudiante_id=estudiante_id,
@@ -432,7 +463,7 @@ def seed_database():
 
             db.commit()
 
-            # 13. Crear Notas
+            # 13. Crear Notas con códigos únicos
             print("📊 Creando notas...")
             notas_data = [
                 (78.50, estudiantes[0].id),
@@ -450,13 +481,20 @@ def seed_database():
                 (60.00, estudiantes[7].id),
             ]
 
-            for nota_valor, estudiante_id in notas_data:
-                nota = Nota(nota=nota_valor, estudiante_id=estudiante_id)
+            for i, (nota_valor, estudiante_id) in enumerate(notas_data):
+                estudiante_obj = next(e for e in estudiantes if e.id == estudiante_id)
+                codigo_nota = f"NOTA-{estudiante_obj.registro}-{i+1:03d}"
+
+                nota = Nota(
+                    codigo_nota=codigo_nota,  # NUEVO: NOTA-VIC001-001, NOTA-TAT002-002, etc.
+                    nota=nota_valor,
+                    estudiante_id=estudiante_id,
+                )
                 db.add(nota)
 
             db.commit()
 
-            # 14. Crear Detalles
+            # 14. Crear Detalles con códigos únicos
             print("📋 Creando detalles...")
             detalles_data = [
                 (date(2025, 3, 10), dt_time(8, 0), grupos[0].id),
@@ -465,22 +503,48 @@ def seed_database():
                 (date(2025, 5, 5), dt_time(14, 0), grupos[2].id),
             ]
 
-            for fecha, hora, grupo_id in detalles_data:
-                detalle = Detalle(fecha=fecha, hora=hora, grupo_id=grupo_id)
+            for i, (fecha, hora, grupo_id) in enumerate(detalles_data):
+                grupo_obj = next(g for g in grupos if g.id == grupo_id)
+                codigo_detalle = f"DET-{grupo_obj.codigo_grupo.split('-')[1]}-{fecha.strftime('%Y%m%d')}-{i+1:02d}"
+
+                detalle = Detalle(
+                    codigo_detalle=codigo_detalle,  # NUEVO: DET-INF120-20250310-01, etc.
+                    fecha=fecha,
+                    hora=hora,
+                    grupo_id=grupo_id,
+                )
                 db.add(detalle)
 
             db.commit()
 
-            print("✅ Seeding completado exitosamente!")
+            print("✅ Seeding completado exitosamente con identificadores únicos!")
             print(f"🎓 Carrera creada: {carrera.nombre}")
             print(f"📚 Plan de estudios: {plan_estudio.plan}")
             print(f"📖 Materias creadas: {len(materias_data)}")
-            print(f"👨‍🏫 Docentes creados: {len(docentes)}")
+            print(
+                f"👨‍🏫 Docentes creados: {len(docentes)} (con códigos DOC-001 a DOC-006)"
+            )
             print(f"👨‍🎓 Estudiantes creados: {len(estudiantes)}")
-            print(f"👥 Grupos creados: {len(grupos)}")
+            print(f"👥 Grupos creados: {len(grupos)} (con códigos GRP-*)")
+            print(f"🏫 Aulas creadas: {len(aulas)} (con códigos AULA-*)")
+            print(f"⏰ Horarios creados: {len(horarios)} (con códigos HOR-*)")
+            print(f"📅 Gestiones creadas: {len(gestiones)} (con códigos GEST-*)")
             print("\n🔐 Credenciales de estudiantes:")
             for est in estudiantes:
                 print(f"   📋 {est.registro} / 123456 ({est.nombre} {est.apellido})")
+
+            print("\n🆔 Ejemplos de identificadores únicos generados:")
+            print(
+                f"   👨‍🏫 Docentes: {docentes[0].codigo_docente}, {docentes[1].codigo_docente}"
+            )
+            print(f"   🏫 Aulas: {aulas[0].codigo_aula}, {aulas[1].codigo_aula}")
+            print(
+                f"   ⏰ Horarios: {horarios[0].codigo_horario}, {horarios[1].codigo_horario}"
+            )
+            print(
+                f"   📅 Gestiones: {gestiones[0].codigo_gestion}, {gestiones[1].codigo_gestion}"
+            )
+            print(f"   👥 Grupos: {grupos[0].codigo_grupo}")
 
         except Exception as e:
             print(f"❌ Error durante seeding: {e}")

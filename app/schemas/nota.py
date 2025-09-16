@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 
 class NotaBase(BaseModel):
+    codigo_nota: str  # NUEVO
     nota: float
     estudiante_id: int
 
@@ -16,6 +17,7 @@ class NotaCreate(NotaBase):
 
 
 class NotaUpdate(BaseModel):
+    codigo_nota: Optional[str] = None  # NUEVO
     nota: Optional[float] = None
     estudiante_id: Optional[int] = None
 

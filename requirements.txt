@@ -20,9 +20,6 @@ python-multipart==0.0.6
 python-dotenv==1.0.0
 typing-extensions==4.8.0
 
-# Sistema de colas y concurrencia 
-threading
-queue
 
 # Cache opcional
 redis==5.0.1

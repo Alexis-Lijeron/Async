@@ -6,6 +6,7 @@ from .base import BaseModel
 class Grupo(BaseModel):
     __tablename__ = "grupos"
 
+    codigo_grupo = Column(String(30), unique=True, nullable=False, index=True)
     descripcion = Column(String(100), nullable=False)
     docente_id = Column(Integer, ForeignKey("docentes.id"), nullable=False)
     gestion_id = Column(Integer, ForeignKey("gestiones.id"), nullable=False)

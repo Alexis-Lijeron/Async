@@ -18,7 +18,9 @@ router = APIRouter()
 def get_docentes(
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
-    search: Optional[str] = Query(None, description="Buscar por nombre o apellido"),
+    search: Optional[str] = Query(
+        None, description="Buscar por nombre, apellido o código"
+    ),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
@@ -34,6 +36,7 @@ def get_docentes(
             query = query.filter(
                 (Docente.nombre.ilike(search_pattern))
                 | (Docente.apellido.ilike(search_pattern))
+                | (Docente.codigo_docente.ilike(search_pattern))
             )
 
         docentes = query.offset(offset).limit(limit).all()
@@ -59,6 +62,7 @@ def get_docentes(
                 grupos_info.append(
                     {
                         "id": g.id,
+                        "codigo_grupo": g.codigo_grupo,
                         "descripcion": g.descripcion,
                         "materia_sigla": materia.sigla if materia else None,
                         "gestion": (
@@ -70,6 +74,7 @@ def get_docentes(
             docentes_data.append(
                 {
                     "id": d.id,
+                    "codigo_docente": d.codigo_docente,
                     "nombre": d.nombre,
                     "apellido": d.apellido,
                     "nombre_completo": f"{d.nombre} {d.apellido}",
@@ -110,17 +115,21 @@ def get_docentes(
 
 @router.get("/search")
 def search_docentes(
-    name: str = Query(..., description="Nombre o apellido a buscar"),
+    name: str = Query(..., description="Nombre, apellido o código a buscar"),
     exact_match: bool = Query(False, description="Búsqueda exacta"),
     page_size: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
-    """Buscar docentes por nombre (endpoint simplificado)"""
+    """Buscar docentes por nombre o código (endpoint simplificado)"""
     if exact_match:
         docentes = (
             db.query(Docente)
-            .filter((Docente.nombre.ilike(name)) | (Docente.apellido.ilike(name)))
+            .filter(
+                (Docente.nombre.ilike(name))
+                | (Docente.apellido.ilike(name))
+                | (Docente.codigo_docente.ilike(name))
+            )
             .limit(page_size)
             .all()
         )
@@ -131,6 +140,7 @@ def search_docentes(
             .filter(
                 (Docente.nombre.ilike(search_pattern))
                 | (Docente.apellido.ilike(search_pattern))
+                | (Docente.codigo_docente.ilike(search_pattern))
             )
             .limit(page_size)
             .all()
@@ -139,6 +149,7 @@ def search_docentes(
     return [
         {
             "id": d.id,
+            "codigo_docente": d.codigo_docente,
             "nombre": d.nombre,
             "apellido": d.apellido,
             "nombre_completo": f"{d.nombre} {d.apellido}",
@@ -147,22 +158,23 @@ def search_docentes(
     ]
 
 
-@router.get("/{docente_id}")
+@router.get("/{codigo_docente}")
 def get_docente(
-    docente_id: int,
+    codigo_docente: str,
     include_grupos: bool = Query(False, description="Incluir grupos del docente"),
     include_statistics: bool = Query(True, description="Incluir estadísticas"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Obtener docente específico con detalles completos"""
-    docente = db.query(Docente).filter(Docente.id == docente_id).first()
+    docente = db.query(Docente).filter(Docente.codigo_docente == codigo_docente).first()
     if not docente:
         raise HTTPException(status_code=404, detail="Docente no encontrado")
 
     # Datos básicos
     docente_data = {
         "id": docente.id,
+        "codigo_docente": docente.codigo_docente,
         "nombre": docente.nombre,
         "apellido": docente.apellido,
         "nombre_completo": f"{docente.nombre} {docente.apellido}",
@@ -215,6 +227,7 @@ def get_docente(
             grupos_info.append(
                 {
                     "id": g.id,
+                    "codigo_grupo": g.codigo_grupo,
                     "descripcion": g.descripcion,
                     "materia": (
                         {
@@ -228,6 +241,7 @@ def get_docente(
                     "gestion": (
                         {
                             "id": gestion.id,
+                            "codigo_gestion": gestion.codigo_gestion,
                             "semestre": gestion.semestre,
                             "año": gestion.año,
                             "descripcion": f"SEM {gestion.semestre}/{gestion.año}",
@@ -253,7 +267,7 @@ def create_docente(
     """Crear docente (procesamiento síncrono)"""
     try:
         # Validar campos requeridos
-        required_fields = ["nombre", "apellido"]
+        required_fields = ["codigo_docente", "nombre", "apellido"]
         missing_fields = [
             field for field in required_fields if field not in docente_data
         ]
@@ -275,19 +289,16 @@ def create_docente(
                 status_code=400, detail="El apellido debe tener al menos 2 caracteres"
             )
 
-        # Verificar si ya existe un docente con el mismo nombre completo
+        # Verificar si ya existe un docente con el mismo código
         existing = (
             db.query(Docente)
-            .filter(
-                Docente.nombre.ilike(docente_data["nombre"].strip()),
-                Docente.apellido.ilike(docente_data["apellido"].strip()),
-            )
+            .filter(Docente.codigo_docente == docente_data["codigo_docente"])
             .first()
         )
         if existing:
             raise HTTPException(
                 status_code=400,
-                detail=f"Ya existe un docente con el nombre '{docente_data['nombre']} {docente_data['apellido']}'",
+                detail=f"Ya existe un docente con el código '{docente_data['codigo_docente']}'",
             )
 
         # Configurar rollback
@@ -320,9 +331,9 @@ def create_docente(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{docente_id}")
+@router.put("/{codigo_docente}")
 def update_docente(
-    docente_id: int,
+    codigo_docente: str,
     docente_data: dict,
     priority: int = Query(5, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
@@ -331,7 +342,9 @@ def update_docente(
     """Actualizar docente (procesamiento síncrono con rollback)"""
     try:
         # Verificar que existe
-        existing_docente = db.query(Docente).filter(Docente.id == docente_id).first()
+        existing_docente = (
+            db.query(Docente).filter(Docente.codigo_docente == codigo_docente).first()
+        )
         if not existing_docente:
             raise HTTPException(status_code=404, detail="Docente no encontrado")
 
@@ -346,38 +359,35 @@ def update_docente(
                 status_code=400, detail="El apellido debe tener al menos 2 caracteres"
             )
 
-        # Verificar duplicados si se está cambiando el nombre completo
-        new_nombre = docente_data.get("nombre", existing_docente.nombre).strip()
-        new_apellido = docente_data.get("apellido", existing_docente.apellido).strip()
-
+        # Verificar código único si se está cambiando
         if (
-            new_nombre != existing_docente.nombre
-            or new_apellido != existing_docente.apellido
+            "codigo_docente" in docente_data
+            and docente_data["codigo_docente"] != existing_docente.codigo_docente
         ):
             duplicate = (
                 db.query(Docente)
                 .filter(
-                    Docente.nombre.ilike(new_nombre),
-                    Docente.apellido.ilike(new_apellido),
-                    Docente.id != docente_id,
+                    Docente.codigo_docente == docente_data["codigo_docente"],
+                    Docente.id != existing_docente.id,
                 )
                 .first()
             )
             if duplicate:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Ya existe un docente con el nombre '{new_nombre} {new_apellido}'",
+                    detail=f"Ya existe un docente con el código '{docente_data['codigo_docente']}'",
                 )
 
-        # Agregar ID a los datos
-        docente_data["id"] = docente_id
+        # Agregar código original a los datos
+        docente_data["codigo_docente_original"] = codigo_docente
 
         # Configurar rollback con estado original
         rollback_data = {
             "operation": "update",
             "table": "docentes",
-            "record_id": docente_id,
+            "codigo_original": codigo_docente,
             "original_data": {
+                "codigo_docente": existing_docente.codigo_docente,
                 "nombre": existing_docente.nombre,
                 "apellido": existing_docente.apellido,
             },
@@ -397,7 +407,7 @@ def update_docente(
             "message": "Actualización en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "docente_id": docente_id,
+            "codigo_docente": codigo_docente,
             "check_status": f"/queue/tasks/{task_id}",
             "rollback_available": True,
         }
@@ -408,9 +418,9 @@ def update_docente(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{docente_id}")
+@router.delete("/{codigo_docente}")
 def delete_docente(
-    docente_id: int,
+    codigo_docente: str,
     force: bool = Query(False, description="Forzar eliminación aunque tenga grupos"),
     priority: int = Query(3, ge=1, le=10, description="Prioridad de la tarea"),
     db: Session = Depends(get_db),
@@ -419,16 +429,18 @@ def delete_docente(
     """Eliminar docente (procesamiento síncrono)"""
     try:
         # Verificar que existe
-        docente = db.query(Docente).filter(Docente.id == docente_id).first()
+        docente = (
+            db.query(Docente).filter(Docente.codigo_docente == codigo_docente).first()
+        )
         if not docente:
             raise HTTPException(status_code=404, detail="Docente no encontrado")
 
         # Verificar si tiene grupos asignados
-        grupos_count = db.query(Grupo).filter(Grupo.docente_id == docente_id).count()
+        grupos_count = db.query(Grupo).filter(Grupo.docente_id == docente.id).count()
         if grupos_count > 0 and not force:
             # Obtener algunos grupos para mostrar información
             grupos_sample = (
-                db.query(Grupo).filter(Grupo.docente_id == docente_id).limit(3).all()
+                db.query(Grupo).filter(Grupo.docente_id == docente.id).limit(3).all()
             )
             grupos_info = []
             for g in grupos_sample:
@@ -446,7 +458,7 @@ def delete_docente(
 
         task_id = sync_thread_queue_manager.add_task(
             task_type="delete_docente",
-            data={"id": docente_id, "force": force},
+            data={"codigo_docente": codigo_docente, "force": force},
             priority=priority,
             max_retries=2,
         )
@@ -456,7 +468,7 @@ def delete_docente(
             "message": "Eliminación en cola de procesamiento",
             "status": "pending",
             "priority": priority,
-            "docente_id": docente_id,
+            "codigo_docente": codigo_docente,
             "groups_affected": grupos_count if force else 0,
             "check_status": f"/queue/tasks/{task_id}",
             "warning": "Esta operación no se puede deshacer"
@@ -473,26 +485,32 @@ def delete_docente(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{docente_id}/grupos")
+@router.get("/{codigo_docente}/grupos")
 def get_docente_grupos(
-    docente_id: int,
+    codigo_docente: str,
     session_id: Optional[str] = Query(None, description="ID de sesión para paginación"),
     page_size: int = Query(20, ge=1, le=100, description="Elementos por página"),
-    gestion_id: Optional[int] = Query(None, description="Filtrar por gestión"),
+    gestion_codigo: Optional[str] = Query(None, description="Filtrar por gestión"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
     """Obtener grupos de un docente específico con paginación"""
     # Verificar que el docente existe
-    docente = db.query(Docente).filter(Docente.id == docente_id).first()
+    docente = db.query(Docente).filter(Docente.codigo_docente == codigo_docente).first()
     if not docente:
         raise HTTPException(status_code=404, detail="Docente no encontrado")
 
     def query_grupos_docente(db: Session, offset: int, limit: int, **kwargs):
-        query = db.query(Grupo).filter(Grupo.docente_id == docente_id)
+        query = db.query(Grupo).filter(Grupo.docente_id == docente.id)
 
-        if gestion_id:
-            query = query.filter(Grupo.gestion_id == gestion_id)
+        if gestion_codigo:
+            gestion = (
+                db.query(Gestion)
+                .filter(Gestion.codigo_gestion == gestion_codigo)
+                .first()
+            )
+            if gestion:
+                query = query.filter(Grupo.gestion_id == gestion.id)
 
         grupos = query.offset(offset).limit(limit).all()
 
@@ -504,6 +522,7 @@ def get_docente_grupos(
             grupos_info.append(
                 {
                     "id": g.id,
+                    "codigo_grupo": g.codigo_grupo,
                     "descripcion": g.descripcion,
                     "materia": (
                         {
@@ -518,6 +537,7 @@ def get_docente_grupos(
                     "gestion": (
                         {
                             "id": gestion.id,
+                            "codigo_gestion": gestion.codigo_gestion,
                             "semestre": gestion.semestre,
                             "año": gestion.año,
                             "descripcion": f"SEM {gestion.semestre}/{gestion.año}",
@@ -538,89 +558,21 @@ def get_docente_grupos(
 
     results, metadata = sync_smart_paginator.get_next_page(
         session_id=session_id,
-        endpoint=f"docente_{docente_id}_grupos",
+        endpoint=f"docente_{codigo_docente}_grupos",
         query_function=query_grupos_docente,
-        query_params={"gestion_id": gestion_id},
+        query_params={"gestion_codigo": gestion_codigo},
         page_size=page_size,
     )
 
     return {
         "docente": {
             "id": docente.id,
+            "codigo_docente": docente.codigo_docente,
             "nombre": docente.nombre,
             "apellido": docente.apellido,
             "nombre_completo": f"{docente.nombre} {docente.apellido}",
         },
         "grupos": results,
         "pagination": metadata,
-        "filters": {"gestion_id": gestion_id},
+        "filters": {"gestion_codigo": gestion_codigo},
     }
-
-
-@router.get("/{docente_id}/materias")
-def get_docente_materias(
-    docente_id: int,
-    unique_only: bool = Query(True, description="Solo materias únicas"),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_active_user),
-):
-    """Obtener materias que imparte un docente"""
-    # Verificar que el docente existe
-    docente = db.query(Docente).filter(Docente.id == docente_id).first()
-    if not docente:
-        raise HTTPException(status_code=404, detail="Docente no encontrado")
-
-    if unique_only:
-        # Materias únicas
-        materias_query = (
-            db.query(Materia)
-            .join(Grupo, Materia.id == Grupo.materia_id)
-            .filter(Grupo.docente_id == docente_id)
-            .distinct()
-        )
-        materias = materias_query.all()
-
-        return {
-            "docente": f"{docente.nombre} {docente.apellido}",
-            "materias_count": len(materias),
-            "materias": [
-                {
-                    "id": m.id,
-                    "sigla": m.sigla,
-                    "nombre": m.nombre,
-                    "creditos": m.creditos,
-                }
-                for m in materias
-            ],
-        }
-    else:
-        # Todos los grupos con sus materias
-        grupos = db.query(Grupo).filter(Grupo.docente_id == docente_id).all()
-
-        materias_info = []
-        for g in grupos:
-            materia = db.query(Materia).filter(Materia.id == g.materia_id).first()
-            gestion = db.query(Gestion).filter(Gestion.id == g.gestion_id).first()
-
-            if materia:
-                materias_info.append(
-                    {
-                        "grupo_id": g.id,
-                        "grupo_descripcion": g.descripcion,
-                        "materia": {
-                            "id": materia.id,
-                            "sigla": materia.sigla,
-                            "nombre": materia.nombre,
-                            "creditos": materia.creditos,
-                        },
-                        "gestion": (
-                            f"SEM {gestion.semestre}/{gestion.año}" if gestion else None
-                        ),
-                    }
-                )
-
-        return {
-            "docente": f"{docente.nombre} {docente.apellido}",
-            "grupos_count": len(materias_info),
-            "grupos_materias": materias_info,
-        }

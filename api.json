@@ -1,0 +1,357 @@
+[
+  {
+    "url": "http://localhost:8000/api/aulas",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/aulas",
+    "method": "POST",
+    "body": {
+      "modulo": "A",
+      "aula": "101"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/aulas/1",
+    "method": "PUT",
+    "body": {
+      "aula": "102"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/aulas/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/carreras",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/carreras",
+    "method": "POST",
+    "body": {
+      "codigo": "INF",
+      "nombre": "Ingeniería Informática"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/carreras/1",
+    "method": "PUT",
+    "body": {
+      "nombre": "Ingeniería en Informática"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/carreras/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/docentes",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/docentes",
+    "method": "POST",
+    "body": {
+      "nombre": "María",
+      "apellido": "Gómez"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/docentes/1",
+    "method": "PUT",
+    "body": {
+      "nombre": "María Actualizada"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/docentes/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/estudiantes",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/estudiantes",
+    "method": "POST",
+    "body": {
+      "registro": "2025001",
+      "nombre": "Juan",
+      "apellido": "Pérez",
+      "ci": "1234567",
+      "contraseña": "1234segura",
+      "carrera_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/estudiantes/1",
+    "method": "PUT",
+    "body": {
+      "nombre": "Juan Actualizado"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/estudiantes/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/gestiones",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/gestiones",
+    "method": "POST",
+    "body": {
+      "semestre": 1,
+      "año": 2025
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/gestiones/1",
+    "method": "PUT",
+    "body": {
+      "semestre": 2
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/gestiones/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/grupos",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/grupos",
+    "method": "POST",
+    "body": {
+      "descripcion": "Grupo A",
+      "docente_id": 1,
+      "gestion_id": 1,
+      "materia_id": 1,
+      "horario_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/grupos/1",
+    "method": "PUT",
+    "body": {
+      "descripcion": "Grupo A Actualizado"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/grupos/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/horarios",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/horarios",
+    "method": "POST",
+    "body": {
+      "dia": "Lunes",
+      "hora_inicio": "08:00",
+      "hora_final": "10:00",
+      "aula_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/horarios/1",
+    "method": "PUT",
+    "body": {
+      "hora_final": "11:00"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/horarios/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/inscripciones",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/inscripciones",
+    "method": "POST",
+    "body": {
+      "semestre": 1,
+      "gestion_id": 1,
+      "estudiante_id": 1,
+      "grupo_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/inscripciones/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/materias",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/materias",
+    "method": "POST",
+    "body": {
+      "sigla": "INF101",
+      "nombre": "Introducción a la Informática",
+      "creditos": 5,
+      "es_electiva": false,
+      "nivel_id": 1,
+      "plan_estudio_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/materias/1",
+    "method": "PUT",
+    "body": {
+      "nombre": "Informática Básica"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/materias/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/niveles",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/niveles",
+    "method": "POST",
+    "body": {
+      "nivel": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/niveles/1",
+    "method": "PUT",
+    "body": {
+      "nivel": 2
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/niveles/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/notas",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/notas",
+    "method": "POST",
+    "body": {
+      "nota": 85,
+      "estudiante_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/notas/1",
+    "method": "PUT",
+    "body": {
+      "nota": 90
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/notas/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/planes-estudio",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/planes-estudio",
+    "method": "POST",
+    "body": {
+      "codigo": "PE-2025",
+      "plan": "Plan Ingeniería 2025",
+      "cant_semestre": 10,
+      "carrera_id": 1
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/planes-estudio/1",
+    "method": "PUT",
+    "body": {
+      "plan": "Plan Ingeniería Actualizado"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/planes-estudio/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/prerrequisitos",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/prerrequisitos",
+    "method": "POST",
+    "body": {
+      "materia_id": 1,
+      "sigla_prerrequisito": "INF101"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/prerrequisitos/1",
+    "method": "PUT",
+    "body": {
+      "sigla_prerrequisito": "INF102"
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/prerrequisitos/1",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/start?max_workers=3",
+    "method": "POST"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/stop",
+    "method": "POST"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/status",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/tasks",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/tasks",
+    "method": "POST",
+    "body": {
+      "task_type": "create_nivel",
+      "data": {
+        "nivel": 3
+      },
+      "priority": 5
+    }
+  },
+  {
+    "url": "http://localhost:8000/api/queue/tasks/12345",
+    "method": "GET"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/tasks/12345/cancel",
+    "method": "POST"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/tasks/12345/retry",
+    "method": "POST"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/tasks/12345",
+    "method": "DELETE"
+  },
+  {
+    "url": "http://localhost:8000/api/queue/processors",
+    "method": "GET"
+  }
+]
