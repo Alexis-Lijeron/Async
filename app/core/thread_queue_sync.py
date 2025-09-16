@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from contextlib import contextmanager
-
+from app.core.redis_queue_monitor import redis_monitor
 from app.config.database import SessionLocal
 from app.models.task import Task
 
@@ -40,6 +40,11 @@ class SyncThreadQueueManager:
         if self._running:
             print("⚠️ Sistema de colas ya está en ejecución")
             return
+        # Inicializar Redis monitor
+        try:
+            redis_monitor.start()
+        except Exception as e:
+            print(f"⚠️ Warning: Redis no disponible: {e}")
 
         self._running = True
         self._max_workers = max_workers
@@ -266,36 +271,78 @@ class SyncThreadQueueManager:
 
     def _execute_task(self, task: Task, worker_id: str, db: Session):
         """Ejecutar una tarea específica"""
-        from app.core.task_processors_sync import get_task_processor
+        try:
+            # Publicar evento de tarea iniciada
+            redis_monitor.publish_task_event(
+                "task_started",
+                task.task_id,
+                task.task_type,
+                worker_id,
+                {"priority": task.priority, "retry_count": task.retry_count},
+            )
 
-        processor = get_task_processor(task.task_type)
-        if not processor:
-            raise ValueError(f"No hay procesador para el tipo: {task.task_type}")
+            # Registrar heartbeat
+            redis_monitor.register_worker_heartbeat(worker_id, task.task_id)
 
-        # Actualizar progreso
-        task.progress = 10.0
-        db.flush()
+            from app.core.task_processors_sync import get_task_processor
 
-        # Ejecutar procesador
-        result = processor(task.get_data(), task)
+            processor = get_task_processor(task.task_type)
+            if not processor:
+                raise ValueError(f"No hay procesador para el tipo: {task.task_type}")
 
-        # Actualizar progreso
-        task.progress = 90.0
-        db.flush()
+            # Actualizar progreso
+            task.progress = 10.0
+            db.flush()
 
-        if result.get("success", False):
-            # Tarea completada exitosamente
-            task.status = "completed"
-            task.set_result(result)
-            task.progress = 100.0
-            task.completed_at = datetime.utcnow()
-            task.unlock()
+            # Ejecutar procesador
+            result = processor(task.get_data(), task)
 
-            self._stats["tasks_completed"] += 1
-            print(f"✅ Tarea completada: {task.task_id}")
-        else:
-            # Tarea falló
-            raise Exception(result.get("error", "Error desconocido"))
+            # Actualizar progreso
+            task.progress = 90.0
+            db.flush()
+
+            if result.get("success", False):
+                # Tarea completada exitosamente
+                task.status = "completed"
+                task.set_result(result)
+                task.progress = 100.0
+                task.completed_at = datetime.utcnow()
+                task.unlock()
+
+                self._stats["tasks_completed"] += 1
+
+                # Publicar evento de tarea completada
+                redis_monitor.publish_task_event(
+                    "task_completed",
+                    task.task_id,
+                    task.task_type,
+                    worker_id,
+                    {
+                        "result": result,
+                        "duration": (
+                            datetime.utcnow() - task.started_at
+                        ).total_seconds(),
+                    },
+                )
+
+                print(f"✅ Tarea completada: {task.task_id}")
+
+            else:
+                raise Exception(result.get("error", "Error desconocido"))
+
+        except Exception as e:
+            # Publicar evento de tarea fallida
+            redis_monitor.publish_task_event(
+                "task_failed",
+                task.task_id,
+                task.task_type,
+                worker_id,
+                {"error": str(e), "retry_count": task.retry_count},
+            )
+            raise
+        finally:
+            # Heartbeat sin tarea actual
+            redis_monitor.register_worker_heartbeat(worker_id)
 
     def _handle_task_failure(self, task: Task, error_message: str, db: Session):
         """Manejar fallo de tarea con reintentos"""

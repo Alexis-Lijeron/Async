@@ -3,11 +3,24 @@ import threading
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import contextmanager
+from app.core.redis_queue_monitor import redis_monitor
+from app.api.v1 import redis_monitoring
+from fastapi.staticfiles import StaticFiles
 
 from app.core.thread_queue_sync import sync_thread_queue_manager
 from app.core.pagination_system_sync import sync_smart_paginator
 from app.core.seeder_sync import run_seeder
 from app.config.database import init_db
+
+try:
+    from app.core.redis_queue_monitor import redis_monitor
+    from app.api.v1.redis_monitoring import router as redis_router
+
+    REDIS_AVAILABLE = True
+    print("✅ Redis imports cargados")
+except ImportError as e:
+    print(f"⚠️ Redis no disponible: {e}")
+    REDIS_AVAILABLE = False
 # Import routers
 from app.api.auth import router as auth_router
 from app.api.v1.estudiantes import router as estudiantes_router
@@ -75,6 +88,17 @@ def initialize_app():
                 print(f"📊 Última verificación BD: {stats.get('last_db_check', 'N/A')}")
         except Exception as stats_error:
             print(f"⚠️ Error obteniendo estadísticas: {stats_error}")
+
+        # 6. Inicializar Redis Monitor (NUEVO)
+        if REDIS_AVAILABLE:
+            try:
+                redis_monitor.start()
+                print("✅ Redis Monitor iniciado")
+            except Exception as redis_error:
+                print(f"⚠️ Redis Monitor no disponible: {redis_error}")
+                print("📊 El sistema funcionará sin monitoreo en tiempo real")
+        else:
+            print("📊 Redis no está instalado, funcionando en modo básico")
 
         print("🎉 Sistema síncrono listo!")
 
@@ -144,7 +168,13 @@ try:
     )
     app.include_router(notas_router, prefix="/api/v1/notas", tags=["📊 Notas"])
     app.include_router(queue_router, prefix="/queue", tags=["🧵 Sistema de Colas"])
+    if REDIS_AVAILABLE:
+        app.include_router(
+            redis_router, prefix="/api/v1/redis", tags=["📊 Redis Monitoring"]
+        )
+        print("✅ Router Redis cargado")
 
+    app.mount("/static", StaticFiles(directory="static"), name="static")
     print("✅ Todos los routers cargados correctamente")
 
 except Exception as router_error:

@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     # Threading (faltaban)
     max_workers: int = 2
     queue_check_interval: int = 5
+    # Redis
+    redis_url: str = "redis://localhost:6379"
+    redis_password: Optional[str] = None
+    redis_db: int = 0
+
+    # Monitoring
+    queue_stats_update_interval: int = 2
+    max_events_history: int = 1000
+    worker_heartbeat_interval: int = 10
 
     @property
     def database_url_sync(self) -> str:

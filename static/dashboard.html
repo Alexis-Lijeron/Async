@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Cola en Tiempo Real - Sistema Académico</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-bar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status-item {
+            text-align: center;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .status-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+        }
+
+        .status-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .workers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .worker-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .worker-card.idle {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            color: #333;
+        }
+
+        .worker-card.active {
+            background: linear-gradient(135deg, #7ee8fa 0%, #eec0c6 100%);
+            color: #333;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
+        }
+
+        .events-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            padding: 10px;
+            border-left: 4px solid;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .event-item.task_created {
+            border-color: #28a745;
+        }
+
+        .event-item.task_started {
+            border-color: #007bff;
+        }
+
+        .event-item.task_completed {
+            border-color: #17a2b8;
+        }
+
+        .event-item.task_failed {
+            border-color: #dc3545;
+        }
+
+        .event-item.queue_stats {
+            border-color: #6f42c1;
+        }
+
+        .event-time {
+            font-size: 0.8rem;
+            color: #666;
+            float: right;
+        }
+
+        .event-type {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        .task-queue {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .task-item {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-item.processing {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+
+        .task-item.completed {
+            background: #e8f5e8;
+            border-color: #4caf50;
+        }
+
+        .task-item.failed {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+
+        .task-priority {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 0 10px;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 1000;
+        }
+
+        .connection-status.connected {
+            background: #28a745;
+        }
+
+        .connection-status.disconnected {
+            background: #dc3545;
+        }
+
+        .stats-chart {
+            height: 200px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .status-bar {
+                flex-direction: column;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="connection-status" id="connectionStatus">
+        🔴 Desconectado
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Cola en Tiempo Real</h1>
+            <p>Sistema Académico - Monitoreo Redis</p>
+        </div>
+
+        <div class="status-bar" id="statusBar">
+            <div class="status-item">
+                <span class="status-value" id="totalWorkers">0</span>
+                <div class="status-label">Workers Totales</div>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="activeWorkers">0</span>
+                <div class="status-label">Workers Activos</div>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="pendingTasks">0</span>
+                <div class="status-label">Tareas Pendientes</div>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="processingTasks">0</span>
+                <div class="status-label">En Proceso</div>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="completedTasks">0</span>
+                <div class="status-label">Completadas</div>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="failedTasks">0</span>
+                <div class="status-label">Fallidas</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="toggleAutoRefresh()">
+                <span id="autoRefreshText">🔄 Auto Refresh ON</span>
+            </button>
+            <button class="btn" onclick="clearEvents()">🗑️ Limpiar Eventos</button>
+            <button class="btn" onclick="exportData()">📥 Exportar Datos</button>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>👥 Workers Activos</h3>
+                <div class="workers-grid" id="workersGrid">
+                    <div class="worker-card idle">
+                        <div>Worker 1</div>
+                        <small>Inactivo</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📊 Rendimiento</h3>
+                <div class="stats-chart" id="performanceChart">
+                    <div>Gráfico de rendimiento en tiempo real</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📋 Cola de Tareas</h3>
+                <div class="task-queue" id="taskQueue">
+                    <div class="task-item">
+                        <div>
+                            <strong>Ejemplo Task</strong><br>
+                            <small>create_estudiante</small>
+                        </div>
+                        <div class="task-priority">5</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📝 Eventos en Tiempo Real</h3>
+                <div class="events-container" id="eventsContainer">
+                    <div class="event-item queue_stats">
+                        <div class="event-time">Conectando...</div>
+                        <div class="event-type">Sistema</div>
+                        <div>Iniciando conexión con Redis...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTgxMjI1MDcsInN1YiI6IlZJQzAwMSJ9.JK3ULD8EPIJxCUQlWD33frZ9cwJ4BcLPsv-P8F4V5zQ";
+
+        class RealtimeQueueDashboard {
+            constructor() {
+                this.apiBaseUrl = 'http://localhost:8000/api/v1';
+                this.apiBaseUrl1 = 'http://localhost:8000';
+                this.autoRefresh = true;
+                this.refreshInterval = 2000; // 2 segundos
+                this.maxEvents = 100;
+                this.eventSource = null;
+                this.refreshTimer = null;
+
+                this.init();
+            }
+
+            async init() {
+                console.log('🚀 Iniciando Dashboard...');
+                await this.checkConnection();
+                this.startAutoRefresh();
+                this.setupEventStream();
+            }
+
+            async checkConnection() {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/redis/stats`, {
+                        headers: { "Authorization": `Bearer ${ACCESS_TOKEN}` }
+                    });
+
+                    if (response.ok) {
+                        this.updateConnectionStatus(true);
+                        console.log('✅ Conexión establecida');
+                    } else {
+                        throw new Error('Error de conexión');
+                    }
+                } catch (error) {
+                    this.updateConnectionStatus(false);
+                    console.error('❌ Error de conexión:', error);
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const status = document.getElementById('connectionStatus');
+                if (connected) {
+                    status.textContent = '🟢 Conectado';
+                    status.className = 'connection-status connected';
+                } else {
+                    status.textContent = '🔴 Desconectado';
+                    status.className = 'connection-status disconnected';
+                }
+            }
+
+            async fetchStats() {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/redis/stats`, {
+                        headers: { "Authorization": `Bearer ${ACCESS_TOKEN}` }
+                    });
+                    if (!response.ok) throw new Error('Error fetching stats');
+
+                    const stats = await response.json();
+                    this.updateStatusBar(stats);
+                    this.updatePerformanceChart(stats);
+
+                } catch (error) {
+                    console.error('Error fetching stats:', error);
+                }
+            }
+
+            async fetchWorkers() {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/redis/workers`, {
+                        headers: { "Authorization": `Bearer ${ACCESS_TOKEN}` }
+                    });
+                    if (!response.ok) throw new Error('Error fetching workers');
+
+                    const data = await response.json();
+                    this.updateWorkersGrid(data.workers);
+
+                } catch (error) {
+                    console.error('Error fetching workers:', error);
+                }
+            }
+
+            async fetchTasks() {
+                try {
+                    await fetch(`${this.apiBaseUrl1}/queue/tasks?page_size=20`, {
+
+                        headers: { "Authorization": `Bearer ${ACCESS_TOKEN}` }
+                    });
+                    if (!response.ok) throw new Error('Error fetching tasks');
+
+                    const data = await response.json();
+                    this.updateTaskQueue(data.data);
+
+                } catch (error) {
+                    console.error('Error fetching tasks:', error);
+                }
+            }
+
+            updateStatusBar(stats) {
+                document.getElementById('totalWorkers').textContent = stats.total_workers || 0;
+                document.getElementById('activeWorkers').textContent = stats.active_workers || 0;
+
+                const taskCounts = stats.task_counts || {};
+                document.getElementById('pendingTasks').textContent = taskCounts.pending || 0;
+                document.getElementById('processingTasks').textContent = taskCounts.processing || 0;
+                document.getElementById('completedTasks').textContent = taskCounts.completed || 0;
+                document.getElementById('failedTasks').textContent = taskCounts.failed || 0;
+            }
+
+            updateWorkersGrid(workers) {
+                const grid = document.getElementById('workersGrid');
+
+                if (!workers || workers.length === 0) {
+                    grid.innerHTML = '<div class="worker-card idle"><div>Sin workers activos</div></div>';
+                    return;
+                }
+
+                grid.innerHTML = workers.map(worker => `
+                <div class="worker-card ${worker.status}">
+                    <div><strong>${worker.worker_id}</strong></div>
+                    <small>${worker.status === 'active' ? `Procesando: ${worker.current_task || 'N/A'}` : 'Inactivo'}</small>
+                    <div style="font-size: 0.7rem; margin-top: 5px; opacity: 0.7;">
+                        ${new Date(worker.last_heartbeat).toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+            }
+
+            updateTaskQueue(tasks) {
+                const queue = document.getElementById('taskQueue');
+
+                if (!tasks || tasks.length === 0) {
+                    queue.innerHTML = '<div class="task-item"><div>No hay tareas en cola</div></div>';
+                    return;
+                }
+
+                queue.innerHTML = tasks.map(task => `
+                <div class="task-item ${task.status}">
+                    <div>
+                        <strong>${task.task_id.substring(0, 8)}...</strong><br>
+                        <small>${task.task_type}</small>
+                    </div>
+                    <div>
+                        <div class="task-priority">${task.priority}</div>
+                        <small style="display: block; margin-top: 5px;">
+                            ${task.status} ${task.progress ? `(${task.progress}%)` : ''}
+                        </small>
+                    </div>
+                </div>
+            `).join('');
+            }
+
+            updatePerformanceChart(stats) {
+                const chart = document.getElementById('performanceChart');
+                const tasksProcessed = stats.tasks_processed || 0;
+                const tasksFailed = stats.tasks_failed || 0;
+                const successRate = tasksProcessed > 0 ? ((tasksProcessed - tasksFailed) / tasksProcessed * 100).toFixed(1) : 100;
+
+                chart.innerHTML = `
+                <div style="text-align: center; width: 100%;">
+                    <div style="font-size: 2rem; font-weight: bold; color: #667eea; margin-bottom: 10px;">
+                        ${successRate}%
+                    </div>
+                    <div style="color: #666; margin-bottom: 15px;">Tasa de Éxito</div>
+                    <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div style="background: linear-gradient(90deg, #28a745, #17a2b8); height: 100%; width: ${successRate}%; transition: width 0.5s;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9rem; color: #666;">
+                        <span>Procesadas: ${tasksProcessed}</span>
+                        <span>Fallidas: ${tasksFailed}</span>
+                    </div>
+                </div>
+            `;
+            }
+
+            setupEventStream() {
+                try {
+                    // Token como query param porque EventSource no soporta headers
+                    this.eventSource = new EventSource(`${this.apiBaseUrl}/redis/stream/all?token=${ACCESS_TOKEN}`);
+
+
+                    this.eventSource.onmessage = (event) => {
+                        const eventData = JSON.parse(event.data);
+                        this.addEvent(eventData);
+                    };
+
+                    this.eventSource.onerror = (error) => {
+                        console.error('Error en EventSource:', error);
+                        this.updateConnectionStatus(false);
+                    };
+
+                    this.eventSource.onopen = () => {
+                        console.log('✅ EventSource conectado');
+                        this.updateConnectionStatus(true);
+                    };
+
+                } catch (error) {
+                    console.error('Error configurando EventSource:', error);
+                    this.setupPollingFallback();
+                }
+            }
+
+            setupPollingFallback() {
+                console.log('📡 Usando polling como fallback...');
+                setInterval(async () => {
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/queue/tasks?page_size=20`, {
+                            headers: { "Authorization": `Bearer ${ACCESS_TOKEN}` }
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            data.events.forEach(event => this.addEvent(event, false));
+                        }
+                    } catch (error) {
+                        console.error('Error en polling:', error);
+                    }
+                }, 3000);
+            }
+
+
+            addEvent(eventData, animate = true) {
+                const container = document.getElementById('eventsContainer');
+
+                const eventDiv = document.createElement('div');
+                eventDiv.className = `event-item ${eventData.event_type}`;
+
+                if (animate) {
+                    eventDiv.style.transform = 'translateX(-100%)';
+                    eventDiv.style.transition = 'transform 0.3s ease-out';
+                }
+
+                const time = new Date(eventData.timestamp).toLocaleTimeString();
+                const taskInfo = eventData.task_id ? `<br><small>Task: ${eventData.task_id.substring(0, 8)}...</small>` : '';
+
+                eventDiv.innerHTML = `
+                    <div class="event-time">${time}</div>
+                    <div class="event-type">${eventData.event_type.replace('_', ' ')}</div>
+                    <div>
+                        ${this.formatEventMessage(eventData)}
+                        ${taskInfo}
+                    </div>
+                `;
+
+                container.insertBefore(eventDiv, container.firstChild);
+
+                if (animate) {
+                    setTimeout(() => {
+                        eventDiv.style.transform = 'translateX(0)';
+                    }, 10);
+                }
+
+                // Limitar número de eventos mostrados
+                while (container.children.length > this.maxEvents) {
+                    container.removeChild(container.lastChild);
+                }
+            }
+
+            formatEventMessage(eventData) {
+                switch (eventData.event_type) {
+                    case 'task_created':
+                        return `Nueva tarea creada: ${eventData.task_type}`;
+                    case 'task_started':
+                        return `Tarea iniciada por ${eventData.worker_id}`;
+                    case 'task_completed':
+                        return `Tarea completada exitosamente`;
+                    case 'task_failed':
+                        return `Tarea falló: ${eventData.data?.error || 'Error desconocido'}`;
+                    case 'queue_stats':
+                        return `Estadísticas actualizadas - ${eventData.data?.task_counts?.pending || 0} pendientes`;
+                    default:
+                        return `Evento: ${eventData.event_type}`;
+                }
+            }
+
+            startAutoRefresh() {
+                if (this.autoRefresh) {
+                    this.refreshTimer = setInterval(() => {
+                        this.fetchStats();
+                        this.fetchWorkers();
+                        this.fetchTasks();
+                    }, this.refreshInterval);
+                }
+            }
+
+            stopAutoRefresh() {
+                if (this.refreshTimer) {
+                    clearInterval(this.refreshTimer);
+                    this.refreshTimer = null;
+                }
+            }
+
+            toggleAutoRefresh() {
+                this.autoRefresh = !this.autoRefresh;
+                const text = document.getElementById('autoRefreshText');
+
+                if (this.autoRefresh) {
+                    text.textContent = '🔄 Auto Refresh ON';
+                    this.startAutoRefresh();
+                } else {
+                    text.textContent = '⏸️ Auto Refresh OFF';
+                    this.stopAutoRefresh();
+                }
+            }
+
+            clearEvents() {
+                const container = document.getElementById('eventsContainer');
+                container.innerHTML = '<div class="event-item queue_stats"><div class="event-time">Limpiado</div><div class="event-type">Sistema</div><div>Eventos limpiados</div></div>';
+            }
+
+            exportData() {
+                const stats = {
+                    timestamp: new Date().toISOString(),
+                    workers: document.getElementById('workersGrid').innerHTML,
+                    events: Array.from(document.getElementById('eventsContainer').children).map(el => el.textContent),
+                    tasks: Array.from(document.getElementById('taskQueue').children).map(el => el.textContent)
+                };
+
+                const blob = new Blob([JSON.stringify(stats, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `queue-stats-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            destroy() {
+                this.stopAutoRefresh();
+                if (this.eventSource) {
+                    this.eventSource.close();
+                }
+            }
+        }
+
+        // Variables globales
+        let dashboard;
+
+        // Funciones globales para los botones
+        function toggleAutoRefresh() {
+            if (dashboard) dashboard.toggleAutoRefresh();
+        }
+
+        function clearEvents() {
+            if (dashboard) dashboard.clearEvents();
+        }
+
+        function exportData() {
+            if (dashboard) dashboard.exportData();
+        }
+
+        // Inicializar cuando se carga la página
+        document.addEventListener('DOMContentLoaded', () => {
+            dashboard = new RealtimeQueueDashboard();
+        });
+
+        // Cleanup cuando se cierra la página
+        window.addEventListener('beforeunload', () => {
+            if (dashboard) dashboard.destroy();
+        });
+
+        // Manejo de errores globales
+        window.addEventListener('error', (event) => {
+            console.error('Error global:', event.error);
+        });
+
+        // Función para simular datos (útil para testing)
+        function simulateData() {
+            const mockEvents = [
+                { event_type: 'task_created', task_type: 'create_estudiante', timestamp: new Date().toISOString() },
+                { event_type: 'task_started', worker_id: 'worker_1', timestamp: new Date().toISOString() },
+                { event_type: 'task_completed', timestamp: new Date().toISOString() }
+            ];
+
+            mockEvents.forEach((event, index) => {
+                setTimeout(() => dashboard.addEvent(event), index * 1000);
+            });
+        }
+
+        // Agregar función para testing en consola
+        console.log('🎯 Dashboard cargado. Usa simulateData() para probar eventos.');
+    </script>
+</body>
+
+</html>
