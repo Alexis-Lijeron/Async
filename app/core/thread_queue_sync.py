@@ -4,6 +4,7 @@ import uuid
 import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
+from app.config.settings import settings
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from contextlib import contextmanager
@@ -17,7 +18,7 @@ class SyncThreadQueueManager:
     Sistema de colas síncrono usando threading y queue
     """
 
-    def __init__(self):
+    def __init__(self, max_in_progress: int = 1000):
         self._running = False
         self._workers = []
         self._max_workers = 4
@@ -25,7 +26,8 @@ class SyncThreadQueueManager:
         self._lock_timeout = timedelta(minutes=5)
         self._task_queue = queue.Queue()
         self._task_notification = threading.Event()
-
+        # 👇 Nuevo límite de tareas pendientes + procesando
+        self._max_in_progress = max_in_progress
         self._stats = {
             "tasks_processed": 0,
             "tasks_failed": 0,
@@ -34,6 +36,11 @@ class SyncThreadQueueManager:
             "uptime_start": None,
             "last_db_check": None,
         }
+
+    def set_max_in_progress(self, max_tasks: int):
+        """Actualizar dinámicamente el límite de tareas pendientes+procesando"""
+        self._max_in_progress = max_tasks
+        print(f"⚙️ Límite actualizado: {max_tasks} tareas en curso como máximo")
 
     def start(self, max_workers: int = 4):
         """Iniciar el sistema de colas con workers síncronos"""
@@ -179,10 +186,23 @@ class SyncThreadQueueManager:
         max_retries: int = 3,
         rollback_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Agregar una tarea a la cola y notificar workers"""
+        """Agregar una tarea a la cola, respetando límite de capacidad"""
         task_id = str(uuid.uuid4())
 
         with SessionLocal() as db:
+            # 🔒 Contar tareas pendientes + procesando
+            current_count = (
+                db.query(Task)
+                .filter(Task.status.in_(["pending", "processing"]))
+                .count()
+            )
+
+            if current_count >= self._max_in_progress:
+                raise Exception(
+                    f"🚫 Límite alcanzado ({self._max_in_progress} tareas en curso). "
+                    "Rechazando nuevas tareas hasta que se libere espacio."
+                )
+
             task = Task(
                 task_id=task_id,
                 task_type=task_type,
@@ -199,9 +219,12 @@ class SyncThreadQueueManager:
             db.add(task)
             db.commit()
 
-            print(f"📝 Tarea agregada: {task_id} ({task_type}) [Prioridad: {priority}]")
+            print(
+                f"📝 Tarea agregada: {task_id} ({task_type}) "
+                f"[Prioridad: {priority}] | en curso: {current_count+1}/{self._max_in_progress}"
+            )
 
-            # Despertar workers para procesar nueva tarea
+            # Despertar workers
             self._task_notification.set()
 
             return task_id
@@ -628,5 +651,7 @@ class SyncThreadQueueManager:
             return True
 
 
-# Instancia global síncrona
-sync_thread_queue_manager = SyncThreadQueueManager()
+# Instancia global síncrona con límite configurable
+sync_thread_queue_manager = SyncThreadQueueManager(
+    max_in_progress=settings.queue_max_in_progress
+)
