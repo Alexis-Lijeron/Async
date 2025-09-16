@@ -77,20 +77,43 @@ def get_tasks(
     status: Optional[str] = Query(None),
     task_type: Optional[str] = Query(None),
     session_id: Optional[str] = Query(None),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None, ge=1),
     current_user=Depends(get_current_active_user),
 ):
-    """Obtener lista de tareas con paginación inteligente"""
+    """Obtener lista de tareas con o sin paginación"""
+
+    # Caso especial: traer todas las tareas sin límite
+    if page_size is None:
+        results = sync_thread_queue_manager.get_tasks(
+            status=status,
+            task_type=task_type,
+            skip=0,
+            limit=None,  # <- None para que no corte resultados
+        )
+        return {
+            "data": results,
+            "pagination": {
+                "session_id": None,
+                "current_page": 1,
+                "items_per_page": None,
+                "items_in_page": len(results),
+                "total_items_available": len(results),
+                "has_more_pages": False,
+                "endpoint": "queue_tasks",
+                "query_params": {"status": status, "task_type": task_type},
+            },
+        }
+
+    # Caso normal: usar paginación
+    if not session_id:
+        import uuid
+
+        session_id = str(uuid.uuid4())[:8]
 
     def query_tasks(db, offset: int, limit: int, **kwargs):
         return sync_thread_queue_manager.get_tasks(
             status=status, task_type=task_type, skip=offset, limit=limit
         )
-
-    if not session_id:
-        import uuid
-
-        session_id = str(uuid.uuid4())[:8]
 
     results, metadata = sync_smart_paginator.get_next_page(
         session_id=session_id,

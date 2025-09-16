@@ -357,15 +357,10 @@
             <div class="card">
                 <h3>📋 Cola de Tareas</h3>
                 <div class="task-queue" id="taskQueue">
-                    <div class="task-item">
-                        <div>
-                            <strong>Ejemplo Task</strong><br>
-                            <small>create_estudiante</small>
-                        </div>
-                        <div class="task-priority">5</div>
-                    </div>
+                    <!-- Aquí se insertarán las tareas dinámicamente -->
                 </div>
             </div>
+
 
             <div class="card">
                 <h3>📝 Eventos en Tiempo Real</h3>
@@ -465,19 +460,21 @@
 
             async fetchTasks() {
                 try {
-                    await fetch(`${this.apiBaseUrl1}/queue/tasks?page_size=20`, {
-
+                    const response = await fetch(`${this.apiBaseUrl1}/queue/tasks`, {
                         headers: { "Authorization": `Bearer ${ACCESS_TOKEN}` }
                     });
                     if (!response.ok) throw new Error('Error fetching tasks');
 
-                    const data = await response.json();
-                    this.updateTaskQueue(data.data);
+                    const result = await response.json();
+
+                    // Aquí cambiamos: antes usabas data.data
+                    this.updateTaskQueue(result.data);
 
                 } catch (error) {
                     console.error('Error fetching tasks:', error);
                 }
             }
+
 
             updateStatusBar(stats) {
                 document.getElementById('totalWorkers').textContent = stats.total_workers || 0;
@@ -513,24 +510,32 @@
                 const queue = document.getElementById('taskQueue');
 
                 if (!tasks || tasks.length === 0) {
-                    queue.innerHTML = '<div class="task-item"><div>No hay tareas en cola</div></div>';
+                    queue.innerHTML = `
+            <div class="task-item" style="text-align:center; width:100%;">
+                <strong>No hay tareas en cola</strong>
+            </div>
+        `;
                     return;
                 }
 
                 queue.innerHTML = tasks.map(task => `
-                <div class="task-item ${task.status}">
-                    <div>
-                        <strong>${task.task_id.substring(0, 8)}...</strong><br>
-                        <small>${task.task_type}</small>
-                    </div>
-                    <div>
-                        <div class="task-priority">${task.priority}</div>
-                        <small style="display: block; margin-top: 5px;">
-                            ${task.status} ${task.progress ? `(${task.progress}%)` : ''}
-                        </small>
-                    </div>
-                </div>
-            `).join('');
+        <div class="task-item ${task.status}">
+            <div>
+                <strong>${task.task_id.substring(0, 8)}...</strong><br>
+                <small>${task.task_type}</small>
+            </div>
+            <div>
+                <div class="task-priority">${task.priority}</div>
+                <small style="display: block; margin-top: 5px;">
+                    ${task.status === "pending" ? "⏳ Pendiente" :
+                        task.status === "processing" ? "⚙️ Procesando" :
+                            task.status === "completed" ? "✅ Completada" :
+                                task.status === "failed" ? "❌ Fallida" :
+                                    task.status === "cancelled" ? "🚫 Cancelada" : task.status}
+                </small>
+            </div>
+        </div>
+    `).join('');
             }
 
             updatePerformanceChart(stats) {
