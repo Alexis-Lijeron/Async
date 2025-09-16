@@ -488,6 +488,20 @@ class SyncThreadQueueManager:
                 db.rollback()
                 return False
 
+    def delete_all_tasks(self) -> int:
+        """Eliminar todas las tareas de la base de datos, sin importar su estado"""
+        with SessionLocal() as db:
+            try:
+                count = db.query(Task).count()
+                db.query(Task).delete()
+                db.commit()
+                print(f"🧨 {count} tareas eliminadas (todas)")
+                return count
+            except Exception as e:
+                db.rollback()
+                print(f"❌ Error eliminando todas las tareas: {e}")
+                raise e
+
     def cleanup_old_tasks(self, days_old: int = 7) -> int:
         """Limpiar tareas antiguas completadas"""
         cutoff_date = datetime.utcnow() - timedelta(days=days_old)

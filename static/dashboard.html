@@ -663,20 +663,26 @@
 
             startAutoRefresh() {
                 if (this.autoRefresh) {
-                    this.refreshTimer = setInterval(() => {
+                    // Refrescar stats y workers cada 2s
+                    this.statsTimer = setInterval(() => {
                         this.fetchStats();
                         this.fetchWorkers();
+                    }, 2000);
+
+                    // Refrescar cola de tareas cada 30s
+                    this.tasksTimer = setInterval(() => {
                         this.fetchTasks();
-                    }, this.refreshInterval);
+                    }, 30000);
                 }
             }
 
             stopAutoRefresh() {
-                if (this.refreshTimer) {
-                    clearInterval(this.refreshTimer);
-                    this.refreshTimer = null;
-                }
+                if (this.statsTimer) clearInterval(this.statsTimer);
+                if (this.tasksTimer) clearInterval(this.tasksTimer);
+                this.statsTimer = null;
+                this.tasksTimer = null;
             }
+
 
             toggleAutoRefresh() {
                 this.autoRefresh = !this.autoRefresh;

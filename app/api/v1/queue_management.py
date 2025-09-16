@@ -249,6 +249,20 @@ def delete_task(
     }
 
 
+@router.delete("/tasks", tags=["Cola - Tareas"])
+def delete_all_tasks(current_user=Depends(get_current_active_user)):
+    """Eliminar TODAS las tareas, sin importar su estado"""
+    try:
+        deleted_count = sync_thread_queue_manager.delete_all_tasks()
+        return {
+            "success": True,
+            "message": f"Se eliminaron {deleted_count} tareas",
+            "deleted_count": deleted_count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Endpoints de paginación
 @router.get("/pagination/sessions", tags=["Paginación"])
 def get_pagination_sessions(
